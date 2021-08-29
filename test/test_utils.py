@@ -102,6 +102,7 @@ from youtube_dl.utils import (
     url_or_none,
     urljoin,
     urlencode_postdata,
+    urlhandle_detect_ext,
     urshift,
     update_url_query,
     variadic,
@@ -2038,6 +2039,30 @@ Line 1
         self.assertEqual(join_nonempty(
             'a', 'b', 'c', 'd',
             from_dict={'a': 'c', 'c': [], 'b': 'd', 'd': None}), 'c-d')
+
+    def test_urlhandle_detect_ext(self):
+
+        class UrlHandle(object):
+            _info = {}
+
+            def __init__(self, info):
+                self._info = info
+
+            @property
+            def headers(self):
+                return self._info
+
+        # header with non-ASCII character and contradictory Content-Type
+        urlh = UrlHandle({
+            'Content-Disposition': b'attachment; filename="Epis\xf3dio contains non-ASCI ISO 8859-1 character.mp3"',
+            'Content-Type': b'audio/aac',
+        })
+        self.assertEqual(urlhandle_detect_ext(urlh), 'mp3')
+        # header with no Content-Disposition
+        urlh = UrlHandle({
+            'Content-Type': b'audio/mp3',
+        })
+        self.assertEqual(urlhandle_detect_ext(urlh), 'mp3')
 
 
 if __name__ == '__main__':

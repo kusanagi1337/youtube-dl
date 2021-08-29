@@ -4743,7 +4743,8 @@ def parse_codecs(codecs_str):
 
 
 def urlhandle_detect_ext(url_handle):
-    getheader = url_handle.headers.get
+    getheader = lambda x: _decode_compat_str(
+        url_handle.headers.get(x), encoding='iso-8859-1', errors='ignore', or_none=True)
 
     cd = getheader('Content-Disposition')
     if cd:
@@ -4752,6 +4753,11 @@ def urlhandle_detect_ext(url_handle):
             e = determine_ext(m.group('filename'), default_ext=None)
             if e:
                 return e
+
+    # from yt-dlp/2647c933b8: thx bashonly
+    meta_ext = (getheader('x-amz-meta-name') or '').rpartition('.')[2]
+    if meta_ext:
+        return meta_ext
 
     return mimetype2ext(getheader('Content-Type'))
 
