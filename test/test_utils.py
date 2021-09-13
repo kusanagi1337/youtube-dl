@@ -405,6 +405,12 @@ class TestUtil(unittest.TestCase):
         self.assertEqual(unified_timestamp('December 31 1969 20:00:01 EDT'), 1)
         self.assertEqual(unified_timestamp('Wednesday 31 December 1969 18:01:26 MDT'), 86)
         self.assertEqual(unified_timestamp('12/31/1969 20:01:18 EDT', False), 78)
+        self.assertEqual(unified_timestamp('11:31 17-Jun-2021'), 1623929460)
+        self.assertEqual(unified_timestamp('11:31 17-Jun-2021-0000'), 1623929460)
+        from youtube_dl.utils import DATE_FORMATS_DAY_FIRST
+        DATE_FORMATS_DAY_FIRST.append('%H:%M %d-%m-%Y')
+        self.assertEqual(unified_timestamp('17:30 27-02-2016'), 1456594200)
+        self.assertEqual(unified_timestamp('17:30 27-02-2016-0000'), 1456594200)
 
     def test_determine_ext(self):
         self.assertEqual(determine_ext('http://example.com/foo/bar.mp4/?download'), 'mp4')

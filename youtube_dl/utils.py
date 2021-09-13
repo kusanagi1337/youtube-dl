@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 # coding: utf-8
 
 from __future__ import unicode_literals
@@ -1734,8 +1733,6 @@ ACCENT_CHARS = dict(zip('ÂÃÄÀÁÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖŐØŒÙ�
                                         'aaaaaa', ['ae'], 'ceeeeiiiionooooooo', ['oe'], 'uuuuuy', ['th'], 'y')))
 
 DATE_FORMATS = (
-    '%d %B %Y',
-    '%d %b %Y',
     '%B %d %Y',
     '%B %dst %Y',
     '%B %dnd %Y',
@@ -1787,6 +1784,11 @@ DATE_FORMATS_DAY_FIRST.extend([
     '%d/%m/%y',
     '%d/%m/%Y %H:%M:%S',
     '%d-%m-%Y %H:%M',
+    '%d %B %Y',
+    '%d %b %Y',
+    '%d-%b-%Y',
+    '%H:%M %d-%b-%Y',
+    '%H:%M:%S %d-%b-%Y',
 ])
 
 DATE_FORMATS_MONTH_FIRST = list(DATE_FORMATS)
@@ -1796,6 +1798,11 @@ DATE_FORMATS_MONTH_FIRST.extend([
     '%m/%d/%Y',
     '%m/%d/%y',
     '%m/%d/%Y %H:%M:%S',
+    '%B %d %Y',
+    '%b %d %Y',
+    '%b-%d-%Y',
+    '%H:%M %b-%d-%Y',
+    '%H:%M:%S %b-%d-%Y',
 ])
 
 PACKED_CODES_RE = r"}\('(.+)',(\d+),(\d+),'([^']+)'\.split\('\|'\)"
