@@ -2069,6 +2069,33 @@ Line 1
             'Content-Type': b'audio/mp3',
         })
         self.assertEqual(urlhandle_detect_ext(urlh), 'mp3')
+        # header with Content-Disposition and unquoted filename
+        urlh = UrlHandle({
+            'Content-Disposition': b'attachment; filename=unquoted_filename_token.mp3',
+        })
+        self.assertEqual(urlhandle_detect_ext(urlh), 'mp3')
+        # header with Content-Disposition including spacing and uppercase
+        urlh = UrlHandle({
+            'Content-Disposition': b'ATTACHMENT; FileName = unquoted_filename_token.mp3',
+        })
+        self.assertEqual(urlhandle_detect_ext(urlh), 'mp3')
+        # header with Content-Disposition and extended filename parameter syntax
+        urlh = UrlHandle({
+            'Content-Disposition': b"attachment; filename*=iso8859-15''costs%201%A4%20filename.mp3",
+        })
+        self.assertEqual(urlhandle_detect_ext(urlh), 'mp3')
+        # header with Content-Disposition and both filename parameter syntaxes
+        urlh = UrlHandle({
+            'Content-Disposition': b'''attachment; filename="should ignore.mp4";
+             FileName* = iso8859-15''costs%201%A4%20filename.mp3''',
+        })
+        self.assertEqual(urlhandle_detect_ext(urlh), 'mp3')
+        # header with Content-Disposition and 'wrong' order of both syntaxes
+        urlh = UrlHandle({
+            'Content-Disposition': b'''attachment; filename*=iso8859-15''costs%201%A4%20filename.mp3;
+            filename="should ignore.mp4"''',
+        })
+        self.assertEqual(urlhandle_detect_ext(urlh), 'mp3')
 
 
 if __name__ == '__main__':

@@ -66,9 +66,10 @@ from .compat import (
     compat_urllib_HTTPError,
     compat_urllib_parse,
     compat_urllib_parse_parse_qs as compat_parse_qs,
+    compat_urllib_parse_unquote,
+    compat_urllib_parse_unquote_plus,
     compat_urllib_parse_urlencode,
     compat_urllib_parse_urlparse,
-    compat_urllib_parse_unquote_plus,
     compat_urllib_request,
     compat_xpath,
 )
@@ -4755,9 +4756,22 @@ def urlhandle_detect_ext(url_handle):
 
     cd = getheader('Content-Disposition')
     if cd:
-        m = re.match(r'attachment;\s*filename="(?P<filename>[^"]+)"', cd)
+        m = re.match(r'''(?xi)
+            attachment;\s*
+            (?:filename\s*=[^;]+?;\s*)?                    # possible initial filename=...;, ignored
+            filename(?P<x>\*)?\s*=\s*                      # filename/filename* =
+                (?(x)(?P<charset>\S+?)'[\w-]*'|(?P<q>")?)  # if * then charset'...' else maybe "
+                (?P<filename>(?(q)[^"]+(?=")|[^\s;]+))         # actual name of file
+            ''', cd)
         if m:
-            e = determine_ext(m.group('filename'), default_ext=None)
+            m = m.groupdict()
+            filename = m.get('filename')
+            if m.get('x'):
+                try:
+                    filename = compat_urllib_parse_unquote(filename, encoding=m.get('charset', 'utf-8'))
+                except LookupError:  # unrecognised character set name
+                    pass
+            e = determine_ext(filename, default_ext=None)
             if e:
                 return e
 
