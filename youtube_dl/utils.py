@@ -1986,7 +1986,9 @@ def get_element_by_attribute(attribute, value, html, escape_value=True):
 def get_elements_by_class(class_name, html):
     """Return the content of all tags with the specified class in the passed HTML document as a list"""
     return get_elements_by_attribute(
-        'class', r'[^\'"]*\b%s\b[^\'"]*' % re.escape(class_name),
+        # class names can contain alphanumeric, -, _ and \ for escapes
+        # don't allow a word break at -
+        'class', r'(?:[\w\s\\-]*?[\w\s])?\b%s\b(?:[\w\s\\][\w\s\\-]*?)?' % re.escape(class_name),
         html, escape_value=False)
 
 
@@ -1997,11 +1999,13 @@ def get_elements_by_attribute(attribute, value, html, escape_value=True):
 
     retlist = []
     for m in re.finditer(r'''(?xs)
-        <([a-zA-Z0-9:._-]+)
+        <([a-zA-Z0-9:._-]+)	# conservative pattern: HTML tags don't have :._-
+         # (?:\s[^>]+)          # this seems to be simpler than the below and work the same?
          (?:\s+[a-zA-Z0-9:._-]+(?:=[a-zA-Z0-9:._-]*|="[^"]*"|='[^']*'|))*?
-         \s+%s=['"]?%s['"]?
+         \s*\b%s\s*=\s*(?P<__q>'|"|\b)%s(?P=__q)
+         # (?:\s[^>]+)?         # as above
          (?:\s+[a-zA-Z0-9:._-]+(?:=[a-zA-Z0-9:._-]*|="[^"]*"|='[^']*'|))*?
-        \s*>
+         \s*>
         (?P<content>.*?)
         </\1>
     ''' % (re.escape(attribute), value), html):

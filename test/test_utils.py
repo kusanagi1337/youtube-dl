@@ -1619,7 +1619,10 @@ Line 1
 
     def test_get_elements_by_class(self):
         html = '''
-            <span class="foo bar">nice</span><span class="foo bar">also nice</span>
+            <span class="not-foo bar">nasty</span>
+            <span class="foo bar">nice</span>
+            <span class="bar foo">"also nice"</span>
+            <span class="bar foo-impostor">also nasty</span>
         '''
 
         self.assertEqual(get_elements_by_class('foo', html), ['nice', 'also nice'])
