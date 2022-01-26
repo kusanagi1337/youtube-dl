@@ -4871,7 +4871,7 @@ def determine_protocol(info_dict):
     elif ext == 'f4m':
         return 'f4m'
 
-    return compat_urllib_parse_urlparse(url).scheme
+    return compat_urllib_parse_urlparse(url).scheme or 'http'
 
 
 def render_table(header_row, data):
