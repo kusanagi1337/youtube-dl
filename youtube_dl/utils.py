@@ -2361,19 +2361,48 @@ def make_HTTPS_handler(params, **kwargs):
         # https://github.com/python/cpython/issues/85140
         # https://github.com/yt-dlp/yt-dlp/issues/3878
         try:
+            # fails on Python < 2.7.10, not ssl.HAS_ALPN
             ctx.set_alpn_protocols(ALPN_PROTOCOLS)
         except (AttributeError, NotImplementedError):
-            # Python < 2.7.10, not ssl.HAS_ALPN
             pass
 
-    opts_no_check_certificate = params.get('nocheckcertificate', False)
+    opts_check_certificate = not params.get('nocheckcertificate', False)
+
+    if opts_check_certificate and sys.version_info >= (3, 7) and sys.platform == 'win32' and hasattr(ssl, 'enum_certificates'):
+        # From yt-dlp: work around issue in load_default_certs if there are bad certificates. See:
+        # https://github.com/yt-dlp/yt-dlp/issues/1060,
+        # https://bugs.python.org/issue35665, https://bugs.python.org/issue4531
+        # but not with MingW (no enum_certificates())
+        from types import MethodType
+
+        def ssl_load_windows_store_certs(ssl_context, storename):
+            # Code adapted from _load_windows_store_certs in https://github.com/python/cpython/blob/main/Lib/ssl.py
+            try:
+                certs = [cert for cert, encoding, trust in ssl.enum_certificates(storename)
+                         if encoding == 'x509_asn' and (
+                             trust is True or ssl.Purpose.SERVER_AUTH.oid in trust)]
+            except PermissionError:
+                return
+            for cert in certs:
+                try:
+                    ssl_context.load_verify_locations(cadata=cert)
+                    # no warning on error, as the problem is probably a permanent unfixable feature of the platform
+                except ssl.SSLError:
+                    pass
+
+        ssl.SSLContext._ssl_load_windows_store_certs = MethodType(ssl_load_windows_store_certs, ssl.SSLContext)
+        ssl_cert_verify_mode = True
+    else:
+        ssl_cert_verify_mode = ssl.CERT_REQUIRED if opts_check_certificate else ssl.CERT_NONE
+
     if hasattr(ssl, 'create_default_context'):  # Python >= 3.4 or 2.7.9
+        # To avoid mentioning SSL options by name (varying by Python version)
+        # we ask for the *default* settings when possible, relying on
+        # Python ssl to select the best settings known to that version
         context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH)
         set_alpn_protocols(context)
-        if opts_no_check_certificate:
-            context.check_hostname = False
-            context.verify_mode = ssl.CERT_NONE
-
+        context.check_hostname = opts_check_certificate
+        context.verify_mode = ssl_cert_verify_mode
         try:
             return YoutubeDLHTTPSHandler(params, context=context, **kwargs)
         except TypeError:
@@ -2385,9 +2414,7 @@ def make_HTTPS_handler(params, **kwargs):
         return YoutubeDLHTTPSHandler(params, **kwargs)
     else:  # Python3 < 3.4
         context = ssl.SSLContext(ssl.PROTOCOL_TLSv1)
-        context.verify_mode = (ssl.CERT_NONE
-                               if opts_no_check_certificate
-                               else ssl.CERT_REQUIRED)
+        context.verify_mode = ssl_cert_verify_mode
         context.set_default_verify_paths()
         set_alpn_protocols(context)
         return YoutubeDLHTTPSHandler(params, context=context, **kwargs)
