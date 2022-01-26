@@ -2412,25 +2412,27 @@ class YoutubeDLError(Exception):
 class ExtractorError(YoutubeDLError):
     """Error during info extraction."""
 
-    def __init__(self, msg, tb=None, expected=False, cause=None, video_id=None):
+    def __init__(self, msg, tb=None, expected=False, cause=None, video_id=None, ie=None):
         """ tb, if given, is the original traceback (so that it can be printed out).
         If expected is set, this is a normal error message and most likely not a bug in youtube-dl.
         """
 
-        if sys.exc_info()[0] in (compat_urllib_error.URLError, socket.timeout, UnavailableVideoError):
-            expected = True
-        if video_id is not None:
-            msg = video_id + ': ' + msg
-        if cause:
-            msg += ' (caused by %r)' % cause
-        if not expected:
-            msg += bug_reports_message()
-        super(ExtractorError, self).__init__(msg)
-
+        self.msg = compat_str(msg)
         self.traceback = tb
         self.exc_info = sys.exc_info()  # preserve original exception
         self.cause = cause
         self.video_id = video_id
+
+        expected = expected or (
+            self.exc_info[0] in (compat_urllib_error.URLError, socket.timeout, UnavailableVideoError))
+        msg = ''.join((
+            '[%s] ' % ie if ie is not None else '',
+            video_id + ': ' if video_id is not None else '',
+            self.msg or 'Extractor error',
+            (' (caused by %r)' % (cause, )) if cause else '',
+            bug_reports_message() if not expected else '',
+        ))
+        super(ExtractorError, self).__init__(msg)
 
     def format_traceback(self):
         if self.traceback is None:
