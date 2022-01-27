@@ -3900,16 +3900,16 @@ class PUTRequest(compat_urllib_request.Request):
 
 
 def int_or_none(v, scale=1, default=None, get_attr=None, invscale=1, base=None):
-    if get_attr:
-        if v is not None:
-            v = getattr(v, get_attr, None)
-    if v in (None, ''):
-        return default
-    try:
-        # like int, raise if base is specified and v is not a string
-        return (int(v) if base is None else int(v, base=base)) * invscale // scale
-    except (ValueError, TypeError, OverflowError):
-        return default
+    if get_attr and v is not None:
+        v = getattr(v, get_attr, None)
+    result = default
+    if v not in (None, ''):
+        try:
+            # like int, raise if base is specified and v is not a string
+            result = (int(v) if base is None else int(v, base=base)) * invscale // scale
+        except (ValueError, TypeError, OverflowError):
+            pass
+    return result
 
 
 def str_or_none(v, default=None):
