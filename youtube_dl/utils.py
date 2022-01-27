@@ -3746,10 +3746,11 @@ def parse_count(s):
     if s is None:
         return None
 
-    s = s.strip()
-
-    if re.match(r'^[\d,.]+$', s):
-        return str_to_int(s)
+    m = re.match(r'^(?:[^\d]+\s+)?(?P<val>(?P<num>[\d,.]+)(?P<rest>[\w\s]+?)?)(?:\s|\s*$)', s)
+    if m:
+        if not m.group('rest'):
+            return str_to_int(m.group('num'))
+        s = m.group('val')
 
     _UNIT_TABLE = {
         'k': 1000,
@@ -3758,9 +3759,17 @@ def parse_count(s):
         'M': 1000 ** 2,
         'kk': 1000 ** 2,
         'KK': 1000 ** 2,
+        'b': 1000 ** 3,
+        'B': 1000 ** 3,
     }
 
-    return lookup_unit_table(_UNIT_TABLE, s)
+    ret = lookup_unit_table(_UNIT_TABLE, s)
+    if ret is not None:
+        return ret
+
+    s = m and m.group('num')
+    if s is not None:
+        return str_to_int(s)
 
 
 def parse_resolution(s):
