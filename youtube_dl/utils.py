@@ -4243,7 +4243,8 @@ class InAdvancePagedList(PagedList):
         res = []
         start_page = start // self._pagesize
         end_page = (
-            self._pagecount if end is None else (end // self._pagesize + 1))
+            self._pagecount if end is None
+            else min(self._pagecount, end // self._pagesize + 1))
         skip_elems = start - start_page * self._pagesize
         only_more = None if end is None else end - start
         for pagenum in range(start_page, end_page):
