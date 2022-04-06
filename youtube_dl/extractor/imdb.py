@@ -1,3 +1,4 @@
+# coding: utf-8
 from __future__ import unicode_literals
 
 import base64
@@ -5,8 +6,10 @@ import json
 import re
 
 from .common import InfoExtractor
+from ..compat import compat_str
 from ..utils import (
     determine_ext,
+    get_element_by_id,
     mimetype2ext,
     parse_duration,
     qualities,
@@ -22,12 +25,16 @@ class ImdbIE(InfoExtractor):
 
     _TESTS = [{
         'url': 'http://www.imdb.com/video/imdb/vi2524815897',
+        'md5': '471594d511a4dee8d71cea96dd72b1ad',
         'info_dict': {
             'id': '2524815897',
             'ext': 'mp4',
-            'title': 'No. 2',
+            'title': 'Ice Age 4: Continental Drift',
             'description': 'md5:87bd0bdc61e351f21f20d2d7441cb4e7',
             'duration': 152,
+        },
+        'params': {
+            'format': '[format_id!^=hls]',
         }
     }, {
         'url': 'http://www.imdb.com/video/_/vi2524815897',
@@ -49,6 +56,38 @@ class ImdbIE(InfoExtractor):
         'only_matching': True,
     }]
 
+    @staticmethod
+    def get_value(data, prop, value_name='value', expected_type=compat_str):
+        return try_get(data, lambda x: x[prop][value_name], expected_type)
+
+    def _extract_formats(self, fmt_list, video_id):
+        if not isinstance(fmt_list, (list, tuple)):
+            return []
+        quality = qualities(('SD', '480p', '720p', '1080p'))
+        formats = []
+        for encoding in fmt_list:
+            video_url = url_or_none(try_get(encoding, lambda x: x['url']))
+            if not video_url:
+                continue
+            ext = mimetype2ext(encoding.get(
+                'mimeType')) or determine_ext(video_url)
+            if ext == 'm3u8':
+                formats.extend(self._extract_m3u8_formats(
+                    video_url, video_id, 'mp4', entry_protocol='m3u8_native',
+                    preference=1, m3u8_id='hls', fatal=False))
+                continue
+            format_id = (
+                self.get_value(encoding, 'displayName')
+                or encoding.get('definition'))
+            formats.append({
+                'format_id': format_id,
+                'url': video_url,
+                'ext': ext,
+                'quality': quality(format_id),
+                'language': encoding.get('language'),
+            })
+            return formats
+
     def _real_extract(self, url):
         video_id = self._match_id(url)
 
@@ -62,57 +101,73 @@ class ImdbIE(InfoExtractor):
                 }).encode()).decode(),
             })[0]
 
-        quality = qualities(('SD', '480p', '720p', '1080p'))
-        formats = []
-        for encoding in data['videoLegacyEncodings']:
-            if not encoding or not isinstance(encoding, dict):
-                continue
-            video_url = url_or_none(encoding.get('url'))
-            if not video_url:
-                continue
-            ext = mimetype2ext(encoding.get(
-                'mimeType')) or determine_ext(video_url)
-            if ext == 'm3u8':
-                formats.extend(self._extract_m3u8_formats(
-                    video_url, video_id, 'mp4', entry_protocol='m3u8_native',
-                    preference=1, m3u8_id='hls', fatal=False))
-                continue
-            format_id = encoding.get('definition')
-            formats.append({
-                'format_id': format_id,
-                'url': video_url,
-                'ext': ext,
-                'quality': quality(format_id),
-            })
-        self._sort_formats(formats)
+        formats = self._extract_formats(try_get(data, lambda x: x['videoLegacyEncodings'], list), video_id)
 
         webpage = self._download_webpage(
             'https://www.imdb.com/video/vi' + video_id, video_id)
-        video_metadata = self._parse_json(self._search_regex(
-            r'args\.push\(\s*({.+?})\s*\)\s*;', webpage,
-            'video metadata'), video_id)
+        video_metadata = try_get(
+            self._parse_json(get_element_by_id('__NEXT_DATA__', webpage), video_id, fatal=False),
+            lambda x: x['props']['pageProps']['videoPlaybackData']['video'],
+            dict)
+        if video_metadata:
 
-        video_info = video_metadata.get('VIDEO_INFO')
-        if video_info and isinstance(video_info, dict):
-            info = try_get(
-                video_info, lambda x: x[list(video_info.keys())[0]][0], dict)
+            title = try_get(video_metadata,
+                            lambda x: x['primaryTitle']['titleText']['text'],
+                            compat_str)
+            alt_title = self.get_value(video_metadata, 'name')
+            if not title:
+                title = alt_title
+            if title == alt_title:
+                alt_title = None
+            if not alt_title:
+                alt_title = try_get(
+                    video_metadata,
+                    lambda x: x['primaryTitle']['originalTitleText']['text'],
+                    compat_str)
+                if title == alt_title:
+                    alt_title = None
+
+            description = self.get_value(video_metadata, 'description')
+
+            formats.extend(self._extract_formats(video_metadata.get('playbackURLs'), video_id))
+            self._remove_duplicate_formats(formats)
+
+            thumbnail = url_or_none(self.get_value(video_metadata, 'thumbnail', value_name='url'))
+            duration = self.get_value(video_metadata, 'runtime', expected_type=(int, float))
+            if duration is not None:
+                duration = parse_duration(
+                    '%g%s' % (duration, self.get_value(video_metadata, 'runtime', value_name='unit') or 's'))
+
         else:
-            info = {}
+            video_metadata = self._parse_json(self._search_regex(
+                r'args\.push\(\s*({.+?})\s*\)\s*;', webpage,
+                'video metadata', fatal=False) or '{}', video_id)
 
-        title = self._html_search_meta(
-            ['og:title', 'twitter:title'], webpage) or self._html_search_regex(
-            r'<title>(.+?)</title>', webpage, 'title',
-            default=None) or info['videoTitle']
+            video_info = try_get(video_metadata, lambda x: x['VIDEO_INFO'], dict) or {}
+            info = try_get(
+                video_info, lambda x: x[list(video_info.keys())[0]][0], dict) or {}
+            title = info.get('videoTitle')
+            alt_title = info.get('videoSubTitle')
+            description = info.get('videoDescription')
+            thumbnail = url_or_none(try_get(
+                info, lambda x: x['videoSlate']['source']))
+            duration = parse_duration(info.get('videoRuntime'))
+
+        if not title:
+            title = (
+                self._html_search_meta(('og:title', 'twitter:title'), webpage)
+                or self._html_search_regex(r'(?s)<title\b[^>]*>(.+?)</title>', webpage, 'title'))
+
+        self._sort_formats(formats)
 
         return {
             'id': video_id,
             'title': title,
-            'alt_title': info.get('videoSubTitle'),
+            'alt_title': alt_title,
             'formats': formats,
-            'description': info.get('videoDescription'),
-            'thumbnail': url_or_none(try_get(
-                video_metadata, lambda x: x['videoSlate']['source'])),
-            'duration': parse_duration(info.get('videoRuntime')),
+            'description': description,
+            'thumbnail': thumbnail,
+            'duration': duration,
         }
 
 
