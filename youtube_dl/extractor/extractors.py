@@ -1598,7 +1598,10 @@ from .yandexmusic import (
 )
 from .yandexvideo import YandexVideoIE
 from .yapfiles import YapFilesIE
-from .yappy import YappyIE
+from .yappy import (
+    YappyIE,
+    YappyProfileIE,
+)
 from .yesjapan import YesJapanIE
 from .yinyuetai import YinYueTaiIE
 from .ynet import YnetIE

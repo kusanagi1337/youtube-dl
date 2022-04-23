@@ -4,6 +4,10 @@ from __future__ import unicode_literals
 import re
 
 from .common import InfoExtractor
+from ..compat import (
+    compat_parse_qs,
+    compat_urlparse,
+)
 from ..utils import (
     determine_ext,
     dict_get,
@@ -15,12 +19,13 @@ from ..utils import (
     strip_or_none,
     str_or_none,
     try_get,
+    update_url_query,
     url_or_none,
 )
 
 
 class YappyIE(InfoExtractor):
-    _VALID_URL = r'https?://yappy\.media/video/(?P<id>[\da-fA-F]{32})'
+    _VALID_URL = r'(?:https?://yappy\.media/video/|yappy:)(?P<id>[\da-fA-F]{32})'
     _TESTS = [{
         'url': 'https://yappy.media/video/47fea6d8586f48d1a0cf96a7342aabd2',
         'md5': '99f4b157733f56a07cc7484ae7b2c223',
@@ -128,3 +133,50 @@ class YappyIE(InfoExtractor):
             })
 
         return info
+
+
+class YappyProfileIE(InfoExtractor):
+    _VALID_URL = r'https?://yappy\.media/profile/(?P<id>[\da-fA-F]{32})'
+    _TESTS = [{
+        'url': 'https://yappy.media/profile/5a44cef4ca6f4aa782e0225a883e225d',
+        'info_dict': {
+            'id': '5a44cef4ca6f4aa782e0225a883e225d',
+        },
+        'playlist_mincount': 25,
+    }]
+    _PLAYLIST_URL_TEMPLATE = 'https://yappy.media/api/video-list/%s'
+
+    def _real_extract(self, url):
+        playlist_id = self._match_id(url)
+
+        def get_page(url, default=None):
+            return compat_parse_qs(compat_urlparse.urlparse(url).query).get('page', [default])[-1]
+
+        def get_entries(start, playlist_id):
+            next = start
+            while next:
+                page = get_page(next, '1')
+                playlist_json = self._download_json(
+                    next, playlist_id, note='Downloading playlist JSON' + (' - %s' % (page, ) if page != '1' else ''),
+                    fatal=False) or {}
+
+                for vid in try_get(playlist_json, lambda x: x['results'], list) or []:
+                    if not isinstance(vid, dict):
+                        continue
+                    vid = vid.get('uuid')
+                    if vid:
+                        # TODO: extract some metadata
+                        yield self.url_result('yappy:' + vid, ie='Yappy')
+
+                # a URL that has the right page number
+                api_next = playlist_json.get('next')
+                if not api_next:
+                    return
+                next_page = get_page(api_next)
+                if next_page is None or page == next_page:
+                    return
+                next = update_url_query(next, {'page': next_page, })
+
+        return self.playlist_result(
+            (x for x in get_entries(self._PLAYLIST_URL_TEMPLATE % (playlist_id, ), playlist_id)),
+            playlist_id)
