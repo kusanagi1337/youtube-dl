@@ -1,14 +1,22 @@
 # coding: utf-8
 from __future__ import unicode_literals
 
+import functools
 import re
 
 from .common import InfoExtractor
 from ..compat import compat_xpath
 from ..utils import (
+    date_from_str,
     determine_ext,
     ExtractorError,
     int_or_none,
+    OnDemandPagedList,
+    qualities,
+    try_get,
+    unified_strdate,
+    unified_timestamp,
+    update_url_query,
     url_or_none,
     urlencode_postdata,
     xpath_text,
@@ -26,7 +34,7 @@ class AfreecaTVIE(InfoExtractor):
                                 /app/(?:index|read_ucc_bbs)\.cgi|
                                 /player/[Pp]layer\.(?:swf|html)
                             )\?.*?\bnTitleNo=|
-                            vod\.afreecatv\.com/PLAYER/STATION/
+                            vod\.afreecatv\.com/(?:PLAYER/STATION|player)/
                         )
                         (?P<id>\d+)
                     '''
@@ -86,11 +94,12 @@ class AfreecaTVIE(InfoExtractor):
         'params': {
             'skip_download': True,
         },
+        'skip': 'VOD does not exist',
     }, {
         'url': 'http://vod.afreecatv.com/PLAYER/STATION/10481652',
         'info_dict': {
             'id': '10481652',
-            'title': "BJ유트루와 함께하는 '팅커벨 메이크업!'",
+            'title': 'md5:0984100e423f06df0709fe976a4aff74',
             'thumbnail': 're:^https?://(?:video|st)img.afreecatv.com/.*$',
             'uploader': 'dailyapril',
             'uploader_id': 'dailyapril',
@@ -102,7 +111,7 @@ class AfreecaTVIE(InfoExtractor):
             'info_dict': {
                 'id': '20160502_c4c62b9d_174361386_1',
                 'ext': 'mp4',
-                'title': "BJ유트루와 함께하는 '팅커벨 메이크업!' (part 1)",
+                'title': 'md5:f0ba5aa2a7488873765055c0420430ea',
                 'thumbnail': 're:^https?://(?:video|st)img.afreecatv.com/.*$',
                 'uploader': 'dailyapril',
                 'uploader_id': 'dailyapril',
@@ -114,7 +123,7 @@ class AfreecaTVIE(InfoExtractor):
             'info_dict': {
                 'id': '20160502_39e739bb_174361386_2',
                 'ext': 'mp4',
-                'title': "BJ유트루와 함께하는 '팅커벨 메이크업!' (part 2)",
+                'title': 'md5:7bc64181cb3f7e1c1181e2e36c4a0917',
                 'thumbnail': 're:^https?://(?:video|st)img.afreecatv.com/.*$',
                 'uploader': 'dailyapril',
                 'uploader_id': 'dailyapril',
@@ -158,11 +167,15 @@ class AfreecaTVIE(InfoExtractor):
             'skip_download': True,
         },
         'expected_warnings': ['adult content'],
+        'skip': 'VOD is now private',
     }, {
         'url': 'http://www.afreecatv.com/player/Player.swf?szType=szBjId=djleegoon&nStationNo=11273158&nBbsNo=13161095&nTitleNo=36327652',
         'only_matching': True,
     }, {
         'url': 'http://vod.afreecatv.com/PLAYER/STATION/15055030',
+        'only_matching': True,
+    }, {
+        'url': 'http://vod.afreecatv.com/player/15055030',
         'only_matching': True,
     }]
 
@@ -225,9 +238,10 @@ class AfreecaTVIE(InfoExtractor):
 
         webpage = self._download_webpage(url, video_id)
 
-        if re.search(r'alert\(["\']This video has been deleted', webpage):
-            raise ExtractorError(
-                'Video %s has been deleted' % video_id, expected=True)
+        for alert in ('video has been deleted', 'VOD does not exist', 'VOD is now private'):
+            if re.search(r'''alert\s*\(\s*["']Th(?:e|is)\s*%s\b''' % re.escape(alert), webpage):
+                raise ExtractorError(
+                    '%s: %s' % (video_id, alert, ), expected=True)
 
         station_id = self._search_regex(
             r'nStationNo\s*=\s*(\d+)', webpage, 'station')
@@ -237,6 +251,7 @@ class AfreecaTVIE(InfoExtractor):
             r'nTitleNo\s*=\s*(\d+)', webpage, 'title', default=video_id)
 
         partial_view = False
+        adult_view = False
         for _ in range(2):
             query = {
                 'nTitleNo': video_id,
@@ -245,6 +260,8 @@ class AfreecaTVIE(InfoExtractor):
             }
             if partial_view:
                 query['partialView'] = 'SKIP_ADULT'
+            if adult_view:
+                query['adultView'] = 'ADULT_VIEW'
             video_xml = self._download_xml(
                 'http://afbbs.afreecatv.com:8080/api/video/get_video_info.php',
                 video_id, 'Downloading video info XML%s'
@@ -264,6 +281,9 @@ class AfreecaTVIE(InfoExtractor):
                 partial_view = True
                 continue
             elif flag == 'ADULT':
+                if not adult_view:
+                    adult_view = True
+                    continue
                 error = 'Only users older than 19 are able to watch this video. Provide account credentials to download this content.'
             else:
                 error = flag
@@ -304,13 +324,34 @@ class AfreecaTVIE(InfoExtractor):
             entries = []
             file_elements = video_element.findall(compat_xpath('./file'))
             one = len(file_elements) == 1
+
+            def sanitize_upload_date(d):
+                '''null a possibly invalid YYYMMDD'''
+                for _ in range(1):
+                    if d is None:
+                        break
+                    try:
+                        parsed_date = date_from_str(d)
+                    except Exception:
+                        parsed_date = None
+                    if not parsed_date:
+                        d = unified_strdate(d)
+                    else:
+                        if parsed_date.year < 2000 or parsed_date.year >= 2100:
+                            d = None
+                        break
+                return d
+
             for file_num, file_element in enumerate(file_elements, start=1):
                 file_url = url_or_none(file_element.text)
                 if not file_url:
                     continue
                 key = file_element.get('key', '')
-                upload_date = self._search_regex(
-                    r'^(\d{8})_', key, 'upload date', default=None)
+                # sometimes the upload date isn't included in the file name
+                # instead, another random ID is, which may parse as a valid
+                # date but be wildly out of a reasonable range
+                upload_date = sanitize_upload_date(self._search_regex(
+                    r'^(\d{8})_', key, 'upload date', default=None))
                 file_duration = int_or_none(file_element.get('duration'))
                 format_id = key if key else '%s_%s' % (video_id, file_num)
                 if determine_ext(file_url) == 'm3u8':
@@ -365,3 +406,159 @@ class AfreecaTVIE(InfoExtractor):
             })
 
         return info
+
+
+class AfreecaTVLiveIE(AfreecaTVIE):
+
+    IE_NAME = 'afreecatv:live'
+    _VALID_URL = r'https?://play\.afreeca(?:tv)?\.com/(?P<id>[^/]+)(?:/(?P<bno>\d+))?'
+    _TESTS = [{
+        'url': 'https://play.afreecatv.com/pyh3646/237852185',
+        'info_dict': {
+            'id': '237852185',
+            'ext': 'mp4',
+            'title': '【 우루과이 오늘은 무슨일이? 】',
+            'uploader': '박진우[JINU]',
+            'uploader_id': 'pyh3646',
+            'timestamp': 1640661495,
+            'is_live': True,
+        },
+        'skip': 'Livestream has ended',
+    }, {
+        'url': 'http://play.afreeca.com/pyh3646/237852185',
+        'only_matching': True,
+    }, {
+        'url': 'http://play.afreeca.com/pyh3646',
+        'only_matching': True,
+    }]
+
+    _LIVE_API_URL = 'https://live.afreecatv.com/afreeca/player_live_api.php'
+
+    _QUALITIES = ('sd', 'hd', 'hd2k', 'original')
+
+    def _real_extract(self, url):
+        broadcaster_id, broadcast_no = re.match(self._VALID_URL, url).group('id', 'bno')
+        password = self._downloader.params.get('videopassword')
+
+        info = self._download_json(self._LIVE_API_URL, broadcaster_id, fatal=False,
+                                   data=urlencode_postdata({'bid': broadcaster_id})) or {}
+        channel_info = info.get('CHANNEL') or {}
+        broadcaster_id = channel_info.get('BJID') or broadcaster_id
+        broadcast_no = channel_info.get('BNO') or broadcast_no
+        password_protected = channel_info.get('BPWD')
+        if not broadcast_no:
+            raise ExtractorError('Unable to extract broadcast number (%s may not be live)' % (broadcaster_id, ), expected=True)
+        if password_protected == 'Y' and password is None:
+            raise ExtractorError(
+                'This livestream is protected by a password, use the --video-password option',
+                expected=True)
+
+        formats = []
+        quality_key = qualities(self._QUALITIES)
+        for quality_str in self._QUALITIES:
+            params = {
+                'bno': broadcast_no,
+                'stream_type': 'common',
+                'type': 'aid',
+                'quality': quality_str,
+            }
+            if password is not None:
+                params['pwd'] = password
+            aid_response = self._download_json(
+                self._LIVE_API_URL, broadcast_no, fatal=False,
+                data=urlencode_postdata(params),
+                note='Downloading access token for %s stream' % (quality_str, ),
+                errnote='Unable to download access token for %s stream' % (quality_str, ))
+            aid = try_get(aid_response, lambda x: x['CHANNEL']['AID'])
+            if not aid:
+                continue
+
+            stream_base_url = channel_info.get('RMD') or 'https://livestream-manager.afreecatv.com'
+            stream_info = self._download_json(
+                stream_base_url + '/broad_stream_assign.html', broadcast_no, fatal=False,
+                query={
+                    'return_type': channel_info.get('CDN', 'gcp_cdn'),
+                    'broad_key': '%s-common-%s-hls' % (broadcast_no, quality_str, ),
+                },
+                note='Downloading metadata for %s stream' % (quality_str, ),
+                errnote='Unable to download metadata for %s stream' % (quality_str, )) or {}
+
+            if stream_info.get('view_url'):
+                formats.append({
+                    'format_id': quality_str,
+                    'url': update_url_query(stream_info['view_url'], {'aid': aid}),
+                    'ext': 'mp4',
+                    'protocol': 'm3u8',
+                    'quality': quality_key(quality_str),
+                })
+
+        self._sort_formats(formats)
+
+        station_info = self._download_json(
+            'https://st.afreecatv.com/api/get_station_status.php', broadcast_no,
+            query={'szBjId': broadcaster_id}, fatal=False,
+            note='Downloading channel metadata', errnote='Unable to download channel metadata') or {}
+
+        return {
+            'id': broadcast_no,
+            'title': channel_info.get('TITLE') or station_info.get('station_title'),
+            'uploader': channel_info.get('BJNICK') or station_info.get('station_name'),
+            'uploader_id': broadcaster_id,
+            'timestamp': unified_timestamp(station_info.get('broad_start')),
+            'formats': formats,
+            'is_live': True,
+        }
+
+
+class AfreecaTVUserIE(InfoExtractor):
+    IE_NAME = 'afreecatv:user'
+    _VALID_URL = r'https?://bj\.afreeca(?:tv)?\.com/(?P<id>[^/]+)/vods/?(?P<slug_type>[^/]+)?'
+    _TESTS = [{
+        'url': 'https://bj.afreecatv.com/ryuryu24/vods/review',
+        'info_dict': {
+            '_type': 'playlist',
+            'id': 'ryuryu24',
+            'title': 'ryuryu24 - review',
+        },
+        'playlist_mincount': 218,
+    }, {
+        'url': 'https://bj.afreecatv.com/parang1995/vods/highlight',
+        'info_dict': {
+            '_type': 'playlist',
+            'id': 'parang1995',
+            'title': 'parang1995 - highlight',
+        },
+        'playlist_count': 997,
+    }, {
+        'url': 'https://bj.afreecatv.com/ryuryu24/vods',
+        'info_dict': {
+            '_type': 'playlist',
+            'id': 'ryuryu24',
+            'title': 'ryuryu24 - all',
+        },
+        'playlist_mincount': 221,
+    }, {
+        'url': 'https://bj.afreecatv.com/ryuryu24/vods/balloonclip',
+        'info_dict': {
+            '_type': 'playlist',
+            'id': 'ryuryu24',
+            'title': 'ryuryu24 - balloonclip',
+        },
+        'playlist_count': 0,
+    }]
+    _PER_PAGE = 60
+
+    def _fetch_page(self, user_id, user_type, page):
+        page += 1
+        info = self._download_json('https://bjapi.afreecatv.com/api/%s/vods/%s' % (user_id, user_type, ), user_id,
+                                   query={'page': page, 'per_page': self._PER_PAGE, 'orderby': 'reg_date'},
+                                   note='Downloading %s video page %s' % (user_type, page, ))
+        for item in info['data']:
+            yield self.url_result(
+                'https://vod.afreecatv.com/player/%s/' % (item["title_no"], ), AfreecaTVIE, item['title_no'])
+
+    def _real_extract(self, url):
+        user_id, user_type = re.match(self._VALID_URL, url).group('id', 'slug_type')
+        user_type = user_type or 'all'
+        entries = OnDemandPagedList(functools.partial(self._fetch_page, user_id, user_type), self._PER_PAGE)
+        return self.playlist_result(entries, user_id, ' - '.join((user_id, user_type, )))
