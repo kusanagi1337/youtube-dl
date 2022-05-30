@@ -284,7 +284,7 @@ class YoutubeBaseInfoExtractor(InfoExtractor):
 
     _YT_INITIAL_DATA_RE = r'(?:window\s*\[\s*["\']ytInitialData["\']\s*\]|ytInitialData)\s*=\s*({.+?})\s*;'
     _YT_INITIAL_PLAYER_RESPONSE_RE = r'ytInitialPlayerResponse\s*=\s*({.+?})\s*;'
-    _YT_INITIAL_BOUNDARY_RE = r'(?:var\s+meta|</script|\n)'
+    _YT_INITIAL_BOUNDARY_RE = r'(?:;\s*var\s+[\w$]{3,}|;?\s*</script|;\s*?\n)'
 
     def _call_api(self, ep, query, video_id, fatal=True):
         data = self._DEFAULT_API_DATA.copy()
@@ -297,12 +297,10 @@ class YoutubeBaseInfoExtractor(InfoExtractor):
             headers={'content-type': 'application/json'},
             query={'key': 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8'})
 
-    def _extract_yt_initial_data(self, video_id, webpage):
-        return self._parse_json(
-            self._search_regex(
-                (r'%s\s*%s' % (self._YT_INITIAL_DATA_RE, self._YT_INITIAL_BOUNDARY_RE),
-                 self._YT_INITIAL_DATA_RE), webpage, 'yt initial data'),
-            video_id)
+    def _extract_yt_initial_variable(self, webpage, regex, video_id, name):
+        return self._parse_json(self._search_regex(
+            (r'(?s)%s\s*%s' % (regex.rstrip(';'), self._YT_INITIAL_BOUNDARY_RE),
+             regex), webpage, name, default='{}'), video_id, fatal=False)
 
     def _extract_ytcfg(self, video_id, webpage):
         return self._parse_json(
@@ -1653,11 +1651,6 @@ class YoutubeIE(YoutubeBaseInfoExtractor):
                 'title': title,
             })
         return chapters
-
-    def _extract_yt_initial_variable(self, webpage, regex, video_id, name):
-        return self._parse_json(self._search_regex(
-            (r'%s\s*%s' % (regex, self._YT_INITIAL_BOUNDARY_RE),
-             regex), webpage, name, default='{}'), video_id, fatal=False)
 
     def _real_extract(self, url):
         url, smuggled_data = unsmuggle_url(url, {})
@@ -3026,7 +3019,7 @@ class YoutubeTabIE(YoutubeBaseInfoExtractor):
                 return self.url_result(video_id, ie=YoutubeIE.ie_key(), video_id=video_id)
             self.to_screen('Downloading playlist %s - add --no-playlist to just download video %s' % (playlist_id, video_id))
         webpage = self._download_webpage(url, item_id)
-        data = self._extract_yt_initial_data(item_id, webpage)
+        data = self._extract_yt_initial_variable(webpage, self._YT_INITIAL_DATA_RE, video_id, 'yt initial data')
         tabs = try_get(
             data, lambda x: x['contents']['twoColumnBrowseResultsRenderer']['tabs'], list)
         if tabs:
