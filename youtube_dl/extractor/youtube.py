@@ -282,8 +282,8 @@ class YoutubeBaseInfoExtractor(InfoExtractor):
         },
     }
 
-    _YT_INITIAL_DATA_RE = r'(?:window\s*\[\s*["\']ytInitialData["\']\s*\]|ytInitialData)\s*=\s*({.+?})\s*;'
-    _YT_INITIAL_PLAYER_RESPONSE_RE = r'ytInitialPlayerResponse\s*=\s*({.+?})\s*;'
+    _YT_INITIAL_DATA_RE = r'''(?:window\s*\[\s*["']ytInitialData["']\s*\]|ytInitialData)\s*=\s*(\{.+?})\s*;'''
+    _YT_INITIAL_PLAYER_RESPONSE_RE = r'ytInitialPlayerResponse\s*=\s*(\{.+?})\s*;'
     _YT_INITIAL_BOUNDARY_RE = r'(?:;\s*var\s+[\w$]{3,}|;?\s*</script|;\s*?\n)'
 
     def _call_api(self, ep, query, video_id, fatal=True):
