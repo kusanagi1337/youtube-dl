@@ -7,6 +7,8 @@ from .common import InfoExtractor
 from ..compat import (
     compat_str,
     compat_xpath,
+    compat_urllib_parse_urlparse,
+    compat_urllib_request,
 )
 from ..utils import (
     ExtractorError,
@@ -326,6 +328,23 @@ class MTVServicesInfoExtractor(InfoExtractor):
             raise ExtractorError('Could not extract mgid')
 
         return mgid
+
+    # specialise to detect unwanted redirection
+    def _download_webpage(self, url_or_request, video_id, *args, **kwargs):
+        webpage, urlh = self._download_webpage_handle(url_or_request, video_id, *args, **kwargs)
+        this_url = urlh.geturl()
+        parsed_url = compat_urllib_parse_urlparse(this_url)
+        if parsed_url.path == '/':
+            msg = 'Redirected to empty path %s: video not found' % (this_url, )
+            url = url_or_request.get_full_url() if isinstance(url_or_request, compat_urllib_request.Request) else url_or_request
+            if parsed_url.hostname != compat_urllib_parse_urlparse(url).hostname:
+                msg += ' or geo-restricted'
+            if 'fatal' in kwargs and not kwargs['fatal']:
+                self._downloader.report_warning(msg)
+                return None
+            else:
+                raise ExtractorError(msg, expected=True)
+        return webpage
 
     def _real_extract(self, url):
         title = url_basename(url)
