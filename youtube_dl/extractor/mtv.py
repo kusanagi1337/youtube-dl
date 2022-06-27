@@ -248,9 +248,12 @@ class MTVServicesInfoExtractor(InfoExtractor):
             if info:
                 entries.append(info)
 
-        # TODO: should be multi-video
-        return self.playlist_result(
+        if len(entries) == 1:
+            return entries[0]
+        result = self.playlist_result(
             entries, playlist_title=title, playlist_description=description)
+        result['_type'] = 'multi_video'
+        return result
 
     def _extract_triforce_mgid(self, webpage, data_zone=None, video_id=None):
         triforce_feed = self._parse_json(self._search_regex(

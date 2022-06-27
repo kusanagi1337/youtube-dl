@@ -962,8 +962,8 @@ class YoutubeDL(object):
     def __process_playlist(self, ie_result, download):
         # We process each entry in the playlist
         playlist = ie_result.get('title') or ie_result.get('id')
-
-        self.to_screen('[download] Downloading playlist: %s' % playlist)
+        playlist_type = 'playlist (multi-part)' if ie_result['_type'] == 'multi_video' else ie_result['_type']
+        self.to_screen('[download] Downloading %s: %s' % (playlist_type, playlist))
 
         playlist_results = []
 
