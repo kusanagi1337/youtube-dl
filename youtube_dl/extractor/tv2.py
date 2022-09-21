@@ -1,12 +1,17 @@
 # coding: utf-8
 from __future__ import unicode_literals
 
+import itertools
 import re
 
 from .common import InfoExtractor
-from ..compat import compat_HTTPError
+from ..compat import (
+    compat_HTTPError,
+    compat_urllib_error,
+)
 from ..utils import (
     determine_ext,
+    dict_get,
     ExtractorError,
     int_or_none,
     float_or_none,
@@ -15,16 +20,33 @@ from ..utils import (
     remove_end,
     strip_or_none,
     try_get,
+    url_or_none,
 )
 
 
 class TV2IE(InfoExtractor):
-    _VALID_URL = r'https?://(?:www\.)?tv2\.no/v/(?P<id>\d+)'
+    _VALID_URL = r'https?://(?:www\.)?tv2\.no/(?:v\d*/|video/(?:[^/]+/){,3})(?P<id>\d+)'
     _TESTS = [{
+        'url': 'http://www.tv2.no/v/1787176/',
+        'info_dict': {
+            'id': '1787176',
+            'ext': 'mp4',
+            'title': 'Så mye kan du spare på klesvasken',
+            'description': 'TV 2 HJELPER DEG: Hvilket program på vaskemaskinen koster minst, og vasker det like godt?',
+            'timestamp': 1663328629,
+            'upload_date': '20220916',
+            'duration': 117.0,
+            'view_count': int,
+            'categories': list,
+        },
+    }, {
+        'url': 'https://www.tv2.no/video/nyhetene/tv-2-hjelper-deg/saa-mye-kan-du-spare-paa-klesvasken/1787176/',
+        'only_matching': True,
+    }, {
         'url': 'http://www.tv2.no/v/916509/',
         'info_dict': {
             'id': '916509',
-            'ext': 'flv',
+            'ext': 'mp4',
             'title': 'Se Frode Gryttens hyllest av Steven Gerrard',
             'description': 'TV 2 Sportens huspoet tar avskjed med Liverpools kaptein Steven Gerrard.',
             'timestamp': 1431715610,
@@ -33,28 +55,60 @@ class TV2IE(InfoExtractor):
             'view_count': int,
             'categories': list,
         },
+        'skip': 'Unable to download JSON metadata - content expired?',
+    }, {
+        'url': 'http://www.tv2.no/v2/916509',
+        'only_matching': True,
     }]
     _API_DOMAIN = 'sumo.tv2.no'
-    _PROTOCOLS = ('HDS', 'HLS', 'DASH')
+    _METADATA_PATH = 'rest/assets'
+    _METADATA_URL_TMPL = 'https://%s/%s/%s.json'
+    _PROTOCOLS = ('HLS', 'DASH')
     _GEO_COUNTRIES = ['NO']
+
+    def _download_metadata_json(self, video_id):
+        asset, urlh = self._download_json_handle(
+            self._METADATA_URL_TMPL % (self._API_DOMAIN, self._METADATA_PATH, video_id),
+            video_id, expected_status=404)
+        if urlh.getcode() == 404:
+            error = compat_urllib_error.HTTPError(urlh.geturl(), 404, 'Not Found', urlh.info(), urlh)
+            raise ExtractorError('Unable to download JSON metadata - content expired?', cause=error)
+        return asset
+
+    def _download_playback_json(self, video_id, protocol):
+        return self._download_json(
+            'https://api.%s/play/%s?stream=%s' % (self._API_DOMAIN, video_id, protocol),
+            video_id, 'Downloading playback JSON',
+            headers={'content-type': 'application/json'},
+            data='{"device":{"id":"1-1-1","name":"Nettleser (HTML)"}}'.encode())
+
+    @staticmethod
+    def _get_data_items(d):
+        return try_get(d, lambda x: x['streams'], list)
+
+    @staticmethod
+    def _get_thumbnails(a):
+        return [{
+            'id': type_,
+            'url': thumb_url,
+        } for type_, thumb_url in (a.get('images') or {}).items()]
+
+    @staticmethod
+    def _get_timestamp(a):
+        return dict_get(a, ('live_broadcast_time', 'update_time'))
 
     def _real_extract(self, url):
         video_id = self._match_id(url)
-        api_base = 'http://%s/api/web/asset/%s' % (self._API_DOMAIN, video_id)
 
-        asset = self._download_json(
-            api_base + '.json', video_id,
-            'Downloading metadata JSON')['asset']
+        asset = self._download_metadata_json(video_id)
         title = asset.get('subtitle') or asset['title']
         is_live = asset.get('live') is True
 
         formats = []
-        format_urls = []
+        format_urls = set([])
         for protocol in self._PROTOCOLS:
             try:
-                data = self._download_json(
-                    api_base + '/play.json?protocol=%s&videoFormat=SMIL+ISMUSP' % protocol,
-                    video_id, 'Downloading play JSON')['playback']
+                data = self._download_playback_json(video_id, protocol)['playback']
             except ExtractorError as e:
                 if isinstance(e.cause, compat_HTTPError) and e.cause.code == 401:
                     error = self._parse_json(e.cause.read().decode(), video_id)['error']
@@ -65,21 +119,15 @@ class TV2IE(InfoExtractor):
                         self.raise_login_required()
                     raise ExtractorError(error['description'])
                 raise
-            items = try_get(data, lambda x: x['items']['item'])
-            if not items:
-                continue
-            if not isinstance(items, list):
-                items = [items]
+            items = self._get_data_items(data) or []
             for item in items:
-                if not isinstance(item, dict):
-                    continue
-                video_url = item.get('url')
+                video_url = try_get(item, lambda x: x['url'])
                 if not video_url or video_url in format_urls:
                     continue
-                format_id = '%s-%s' % (protocol.lower(), item.get('mediaFormat'))
+                format_id = '%s-%s' % (protocol.lower(), dict_get(item, ('type', 'mediaFormat')))
                 if not self._is_valid_url(video_url, video_id, format_id):
                     continue
-                format_urls.append(video_url)
+                format_urls.add(video_url)
                 ext = determine_ext(video_url)
                 if ext == 'f4m':
                     formats.extend(self._extract_f4m_formats(
@@ -106,10 +154,7 @@ class TV2IE(InfoExtractor):
             raise ExtractorError('This video is DRM protected.', expected=True)
         self._sort_formats(formats)
 
-        thumbnails = [{
-            'id': thumbnail.get('@type'),
-            'url': thumbnail.get('url'),
-        } for _, thumbnail in (asset.get('imageVersions') or {}).items()]
+        thumbnails = [t for t in self._get_thumbnails(asset) if t['url']]
 
         return {
             'id': video_id,
@@ -117,17 +162,17 @@ class TV2IE(InfoExtractor):
             'title': self._live_title(title) if is_live else title,
             'description': strip_or_none(asset.get('description')),
             'thumbnails': thumbnails,
-            'timestamp': parse_iso8601(asset.get('createTime')),
+            'timestamp': parse_iso8601(self._get_timestamp(asset)),
             'duration': float_or_none(asset.get('accurateDuration') or asset.get('duration')),
             'view_count': int_or_none(asset.get('views')),
-            'categories': asset.get('keywords', '').split(','),
+            'categories': dict_get(asset, ('tags', 'keywords'), '').split(','),
             'formats': formats,
             'is_live': is_live,
         }
 
 
 class TV2ArticleIE(InfoExtractor):
-    _VALID_URL = r'https?://(?:www\.)?tv2\.no/(?:a|\d{4}/\d{2}/\d{2}(/[^/]+)+)/(?P<id>\d+)'
+    _VALID_URL = r'https?://(?:www\.)?tv2\.no/(?:\d{4}/\d{2}/\d{2}|(?!video/|v\d*/))(?:[^/]+/)+?(?P<id>\d+)'
     _TESTS = [{
         'url': 'http://www.tv2.no/2015/05/16/nyheter/alesund/krim/pingvin/6930542',
         'info_dict': {
@@ -136,6 +181,17 @@ class TV2ArticleIE(InfoExtractor):
             'description': 'De fire siktede nekter fortsatt for å ha stjålet pingvinbabyene, men innrømmer å ha åpnet luken til de små kyllingene.',
         },
         'playlist_count': 2,
+        'skip': 'Account needed for archive content',
+    }, {
+        'url': 'https://www.tv2.no/mening_og_analyse/dette-er-ikke-laerernes-ansvar/15120661/',
+        'info_dict': {
+            'id': '1788417',
+            'ext': 'mp4',
+            'title': 'Lærerstreiken: Derfor blir de ikke enige ',
+            'description': 'Streiken kom i gang for alvor rundt skolestart i august. Den er allerede den lengste lærerstreiken vi har hatt i Norge.  Både elever og lærere er fortvilet og partene i streiken står bom fast. Hvorfor er det slik?',
+            'timestamp': 1663671503,
+            'upload_date': '20220920',
+        },
     }, {
         'url': 'http://www.tv2.no/a/6930542',
         'only_matching': True,
@@ -151,9 +207,11 @@ class TV2ArticleIE(InfoExtractor):
 
         if not assets:
             # New embed pattern
-            for v in re.findall(r'(?s)TV2ContentboxVideo\(({.+?})\)', webpage):
+            for m in itertools.chain(
+                    re.finditer(r'(?s)TV2ContentboxVideo\((\{.+?})\)', webpage),
+                    re.finditer(r'(?s)TV2\s*.\s*TV2Video\s*\(\s*(\{[^}]+})\s*\)', webpage)):
                 video = self._parse_json(
-                    v, playlist_id, transform_source=js_to_json, fatal=False)
+                    m.group(1), playlist_id, transform_source=js_to_json, fatal=False)
                 if not video:
                     continue
                 asset = video.get('assetId')
@@ -200,8 +258,35 @@ class KatsomoIE(TV2IE):
         'only_matching': True,
     }]
     _API_DOMAIN = 'api.katsomo.fi'
+    _METADATA_PATH = 'api/web/asset'
     _PROTOCOLS = ('HLS', 'MPD')
     _GEO_COUNTRIES = ['FI']
+
+    def _download_metadata_json(self, video_id):
+        return super(KatsomoIE, self)._download_metadata_json(video_id)['asset']
+
+    def _download_playback_json(self, video_id, protocol):
+        return self._download_json(
+            'http://%s/%s/%s/play.json?protocol=%s&videoFormat=SMIL+ISMUSP' % (self._API_DOMAIN, self._METADATA_PATH, video_id, protocol),
+            video_id, 'Downloading playback JSON')
+
+    @staticmethod
+    def _get_data_items(d):
+        items = try_get(d, lambda x: x['items']['item'])
+        if items and not isinstance(items, list):
+            items = [items]
+        return items
+
+    @staticmethod
+    def _get_thumbnails(a):
+        return [{
+            'id': thumbnail.get('@type'),
+            'url': url_or_none(thumbnail.get('url')),
+        } for _, thumbnail in (a.get('imageVersions') or {}).items()]
+
+    @staticmethod
+    def _get_timestamp(a):
+        return a.get('createTime')
 
 
 class MTVUutisetArticleIE(InfoExtractor):
