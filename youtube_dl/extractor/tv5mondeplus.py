@@ -2,11 +2,20 @@
 from __future__ import unicode_literals
 
 from .common import InfoExtractor
+from ..compat import (
+    compat_str,
+    compat_urllib_parse,
+    compat_urllib_parse_urlparse,
+)
 from ..utils import (
     determine_ext,
     extract_attributes,
+    ExtractorError,
     int_or_none,
+    mimetype2ext,
     parse_duration,
+    try_get,
+    url_or_none,
 )
 
 
@@ -15,30 +24,45 @@ class TV5MondePlusIE(InfoExtractor):
     _VALID_URL = r'https?://(?:www\.)?(?:tv5mondeplus|revoir\.tv5monde)\.com/toutes-les-videos/[^/]+/(?P<id>[^/?#]+)'
     _TESTS = [{
         # movie
-        'url': 'https://revoir.tv5monde.com/toutes-les-videos/cinema/rendez-vous-a-atlit',
-        'md5': '8cbde5ea7b296cf635073e27895e227f',
+        'url': 'https://revoir.tv5monde.com/toutes-les-videos/cinema/ceux-qui-travaillent',
+        'md5': '32fa0cde16a4480d1251502a66856d5f',
         'info_dict': {
-            'id': '822a4756-0712-7329-1859-a13ac7fd1407',
-            'display_id': 'rendez-vous-a-atlit',
+            'id': 'dc57a011-ec4b-4648-2a9a-4f03f8352ed3',
+            'display_id': 'ceux-qui-travaillent',
             'ext': 'mp4',
-            'title': 'Rendez-vous à Atlit',
-            'description': 'md5:2893a4c5e1dbac3eedff2d87956e4efb',
-            'upload_date': '20200130',
+            'title': 'Ceux qui travaillent',
+            'description': 'md5:570e8bb688036ace873b2d50d24c026d',
+            'upload_date': '20210819',
         },
+        'skip': 'Redirect to home page - content no longer available?',
     }, {
         # series episode
-        'url': 'https://revoir.tv5monde.com/toutes-les-videos/series-fictions/c-est-la-vie-ennemie-juree',
+        'url': 'https://revoir.tv5monde.com/toutes-les-videos/series-fictions/vestiaires-caro-actrice',
         'info_dict': {
-            'id': '0df7007c-4900-3936-c601-87a13a93a068',
-            'display_id': 'c-est-la-vie-ennemie-juree',
+            'id': '9e9d599e-23af-6915-843e-ecbf62e97925',
+            'display_id': 'vestiaires-caro-actrice',
             'ext': 'mp4',
-            'title': "C'est la vie - Ennemie jurée",
-            'description': 'md5:dfb5c63087b6f35fe0cc0af4fe44287e',
-            'upload_date': '20200130',
-            'series': "C'est la vie",
-            'episode': 'Ennemie jurée',
+            'title': "Vestiaires - Caro actrice",
+            'description': 'md5:db15d2e1976641e08377f942778058ea',
+            'upload_date': '20210819',
+            'series': "Vestiaires",
+            'episode': 'Caro actrice',
+        },
+        'skip': 'Redirect to home page - content no longer available?',
+    }, {
+        # documentary episode with deferred format
+        'url': 'https://revoir.tv5monde.com/toutes-les-videos/documentaires/dora-maar-entre-ombre-et-lumiere-dora-maar-entre-ombre-et-lumiere',
+        'info_dict': {
+            'id': '6890f99d-a79a-1625-0667-14ba542c7f74',
+            'display_id': 'dora-maar-entre-ombre-et-lumiere-dora-maar-entre-ombre-et-lumiere',
+            'ext': 'mp4',
+            'title': 'Dora Maar, entre ombre et lumière',
+            'description': 'md5:114cd8a9ed1090222f5710e8d47964ad',
+            'upload_date': '20220919',
+            'episode': 'Dora Maar, entre ombre et lumière',
         },
         'params': {
+            'format': 'bestvideo',
             'skip_download': True,
         },
     }, {
@@ -52,7 +76,10 @@ class TV5MondePlusIE(InfoExtractor):
 
     def _real_extract(self, url):
         display_id = self._match_id(url)
-        webpage = self._download_webpage(url, display_id)
+        webpage, urlh = self._download_webpage_handle(url, display_id)
+
+        if compat_urllib_parse_urlparse(urlh.geturl()).path == '/':
+            raise ExtractorError('Redirect to home page - content no longer available?')
 
         if ">Ce programme n'est malheureusement pas disponible pour votre zone géographique.<" in webpage:
             self.raise_geo_restricted(countries=['FR'])
@@ -63,23 +90,42 @@ class TV5MondePlusIE(InfoExtractor):
             webpage, 'video player loader'))
 
         video_files = self._parse_json(
-            vpl_data['data-broadcast'], display_id).get('files', [])
+            vpl_data['data-broadcast'], display_id)
         formats = []
-        for video_file in video_files:
-            v_url = video_file.get('url')
-            if not v_url:
-                continue
-            video_format = video_file.get('format') or determine_ext(v_url)
-            if video_format == 'm3u8':
-                formats.extend(self._extract_m3u8_formats(
-                    v_url, display_id, 'mp4', 'm3u8_native',
-                    m3u8_id='hls', fatal=False))
-            else:
-                formats.append({
-                    'url': v_url,
-                    'format_id': video_format,
-                })
+
+        def process_video_files(v):
+            for video_file in v:
+                v_url = try_get(video_file, lambda x: x['url'], compat_str)
+                if not v_url:
+                    continue
+                if video_file.get('type') == 'application/deferred':
+                    video_file = self._download_json(
+                        'https://api.tv5monde.com/player/asset/%s/resolve' % (compat_urllib_parse.quote(v_url), ),
+                        display_id, note='Downloading asset metadata', fatal=False) or []
+                    process_video_files(video_file)
+                    continue
+                video_format = video_file.get('format') or mimetype2ext(video_file.get('type')) or determine_ext(v_url)
+                if video_format == 'm3u8':
+                    formats.extend(self._extract_m3u8_formats(
+                        v_url, display_id, 'mp4', 'm3u8_native',
+                        m3u8_id='hls', fatal=False))
+                elif video_format == 'mpd':
+                    formats.extend(self._extract_mpd_formats(
+                        v_url, display_id, fatal=False))
+                else:
+                    formats.append({
+                        'url': v_url,
+                        'format_id': video_format,
+                    })
+
+        process_video_files(video_files)
+
         self._sort_formats(formats)
+
+        metadata = self._parse_json(
+            vpl_data['data-metadata'], display_id)
+        duration = (int_or_none(try_get(metadata, lambda x: x['content']['duration']))
+                    or parse_duration(self._html_search_meta('duration', webpage)))
 
         description = self._html_search_regex(
             r'(?s)<div[^>]+class=["\']episode-texte[^>]+>(.+?)</div>', webpage,
@@ -108,8 +154,8 @@ class TV5MondePlusIE(InfoExtractor):
             'display_id': display_id,
             'title': title,
             'description': description,
-            'thumbnail': vpl_data.get('data-image'),
-            'duration': int_or_none(vpl_data.get('data-duration')) or parse_duration(self._html_search_meta('duration', webpage)),
+            'thumbnail': url_or_none(vpl_data.get('data-image')),
+            'duration': duration,
             'upload_date': upload_date,
             'formats': formats,
             'series': series,
