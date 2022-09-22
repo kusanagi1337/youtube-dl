@@ -1196,6 +1196,7 @@ class InfoExtractor(object):
         # for _search_regex. Let's simulate the same behavior here as well.
         fatal = kwargs.get('fatal', True) if default == NO_DEFAULT else False
         json_ld = []
+        error_type = RegexNotFoundError
         for mobj in json_ld_list:
             json_ld_item = self._parse_json(
                 mobj.group('json_ld'), video_id, fatal=fatal)
@@ -1206,13 +1207,14 @@ class InfoExtractor(object):
             elif isinstance(json_ld_item, (list, tuple)):
                 json_ld.extend(json_ld_item)
         if json_ld:
+            error_type = ExtractorError
             json_ld = self._json_ld(json_ld, video_id, fatal=fatal, expected_type=expected_type)
         if json_ld:
             return json_ld
         if default is not NO_DEFAULT:
             return default
         elif fatal:
-            raise RegexNotFoundError('Unable to extract JSON-LD')
+            raise error_type('Unable to extract JSON-LD')
         else:
             self._downloader.report_warning('unable to extract JSON-LD %s' % bug_reports_message())
             return {}
@@ -1296,55 +1298,57 @@ class InfoExtractor(object):
             })
             extract_interaction_statistic(e)
 
+        def extract_object(e):
+            item_type = e.get('@type')
+            if expected_type is not None and expected_type != item_type:
+                return False
+            if item_type in ('TVEpisode', 'Episode'):
+                episode_name = unescapeHTML(e.get('name'))
+                info.update({
+                    'episode': episode_name,
+                    'episode_number': int_or_none(e.get('episodeNumber')),
+                    'description': unescapeHTML(e.get('description')),
+                })
+                if not info.get('title') and episode_name:
+                    info['title'] = episode_name
+                part_of_season = e.get('partOfSeason')
+                if isinstance(part_of_season, dict) and part_of_season.get('@type') in ('TVSeason', 'Season', 'CreativeWorkSeason'):
+                    info.update({
+                        'season': unescapeHTML(part_of_season.get('name')),
+                        'season_number': int_or_none(part_of_season.get('seasonNumber')),
+                    })
+                part_of_series = e.get('partOfSeries') or e.get('partOfTVSeries')
+                if isinstance(part_of_series, dict) and part_of_series.get('@type') in ('TVSeries', 'Series', 'CreativeWorkSeries'):
+                    info['series'] = unescapeHTML(part_of_series.get('name'))
+            elif item_type == 'Movie':
+                info.update({
+                    'title': unescapeHTML(e.get('name')),
+                    'description': unescapeHTML(e.get('description')),
+                    'duration': parse_duration(e.get('duration')),
+                    'timestamp': unified_timestamp(e.get('dateCreated')),
+                })
+            elif item_type in ('Article', 'NewsArticle'):
+                info.update({
+                    'timestamp': parse_iso8601(e.get('datePublished')),
+                    'title': unescapeHTML(e.get('headline')),
+                    'description': unescapeHTML(e.get('articleBody')),
+                })
+            elif item_type == 'VideoObject':
+                extract_video_object(e)
+                return expected_type is not None
+
+            video = e.get('video')
+            if isinstance(video, dict) and video.get('@type') == 'VideoObject':
+                extract_video_object(video)
+            return expected_type is not None
+
         for e in json_ld:
-            if '@context' in e:
-                item_type = e.get('@type')
-                if expected_type is not None and expected_type != item_type:
-                    continue
-                if item_type in ('TVEpisode', 'Episode'):
-                    episode_name = unescapeHTML(e.get('name'))
-                    info.update({
-                        'episode': episode_name,
-                        'episode_number': int_or_none(e.get('episodeNumber')),
-                        'description': unescapeHTML(e.get('description')),
-                    })
-                    if not info.get('title') and episode_name:
-                        info['title'] = episode_name
-                    part_of_season = e.get('partOfSeason')
-                    if isinstance(part_of_season, dict) and part_of_season.get('@type') in ('TVSeason', 'Season', 'CreativeWorkSeason'):
-                        info.update({
-                            'season': unescapeHTML(part_of_season.get('name')),
-                            'season_number': int_or_none(part_of_season.get('seasonNumber')),
-                        })
-                    part_of_series = e.get('partOfSeries') or e.get('partOfTVSeries')
-                    if isinstance(part_of_series, dict) and part_of_series.get('@type') in ('TVSeries', 'Series', 'CreativeWorkSeries'):
-                        info['series'] = unescapeHTML(part_of_series.get('name'))
-                elif item_type == 'Movie':
-                    info.update({
-                        'title': unescapeHTML(e.get('name')),
-                        'description': unescapeHTML(e.get('description')),
-                        'duration': parse_duration(e.get('duration')),
-                        'timestamp': unified_timestamp(e.get('dateCreated')),
-                    })
-                elif item_type in ('Article', 'NewsArticle'):
-                    info.update({
-                        'timestamp': parse_iso8601(e.get('datePublished')),
-                        'title': unescapeHTML(e.get('headline')),
-                        'description': unescapeHTML(e.get('articleBody')),
-                    })
-                elif item_type == 'VideoObject':
-                    extract_video_object(e)
-                    if expected_type is None:
-                        continue
-                    else:
-                        break
-                video = e.get('video')
-                if isinstance(video, dict) and video.get('@type') == 'VideoObject':
-                    extract_video_object(video)
-                if expected_type is None:
-                    continue
-                else:
+            if '@context' not in e:
+                continue
+            for ee in e.get('@graph', [e]):
+                if extract_object(ee):
                     break
+
         return dict((k, v) for k, v in info.items() if v is not None)
 
     @staticmethod

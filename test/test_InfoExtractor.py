@@ -147,6 +147,34 @@ class TestInfoExtractor(unittest.TestCase):
                 'height': 1080,
             })
 
+    def test_search_json_ld_graph(self):
+        expect_dict(
+            self,
+            self.ie._search_json_ld(r'''<script type="application/ld+json">
+{"@context":"https://schema.org",
+"@graph":[{
+"@type":"Clip",
+"identifier":"clipid",
+"name":"Name of the Clip",
+"url":"https://domain/clips/clipid",
+"image":"https://domain/clips/images/clipid.jpg",
+"description":"Description of the Clip"
+},
+{"uploadDate":"2021-12-21",
+"@type":"VideoObject",
+"name":"Name of the VideoObject",
+"thumbnailUrl":"https://domain/videos/images/clipid.jpg",
+"description":"Description of the VideoObject",
+"duration":"PT180S"
+}]}
+</script>''', None),
+            {
+                'title': 'Name of the VideoObject',
+                'description': 'Description of the VideoObject',
+                'timestamp': 1640044800,
+                'duration': 180.0,
+            })
+
     def test_download_json(self):
         uri = encode_data_uri(b'{"foo": "blah"}', 'application/json')
         self.assertEqual(self.ie._download_json(uri, None), {'foo': 'blah'})
