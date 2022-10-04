@@ -34,6 +34,7 @@ class InfoExtractorTestRequestHandler(compat_http_server.BaseHTTPRequestHandler)
         else:
             assert False
 
+
 # can't be called TestIE with pytest
 class DummyIE(InfoExtractor):
     pass
