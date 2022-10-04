@@ -64,7 +64,7 @@ jobs:
         wget https://repo1.maven.org/maven2/org/python/jython-installer/2.7.1/jython-installer-2.7.1.jar -O jython-installer.jar
         java -jar jython-installer.jar -s -d "$HOME/jython"
         echo "$HOME/jython/bin" >> $GITHUB_PATH
-        $HOME/jython/bin/python -m pip install -U pip<21
+        $HOME/jython/bin/python -m pip install -U 'pip<21'
     - name: Install pytest
       run: ${{ matrix.python }} -m pip install pytest~=4.6.11
     - name: Run tests
