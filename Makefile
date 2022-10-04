@@ -1,15 +1,40 @@
-all: youtube-dl README.md CONTRIBUTING.md README.txt youtube-dl.1 youtube-dl.bash-completion youtube-dl.zsh youtube-dl.fish supportedsites
-
-clean:
-	rm -rf youtube-dl.1.temp.md youtube-dl.1 youtube-dl.bash-completion README.txt MANIFEST build/ dist/ .coverage cover/ youtube-dl.tar.gz youtube-dl.zsh youtube-dl.fish youtube_dl/extractor/lazy_extractors.py *.dump *.part* *.ytdl *.info.json *.mp4 *.m4a *.flv *.mp3 *.avi *.mkv *.webm *.3gp *.wav *.ape *.swf *.jpg *.png CONTRIBUTING.md.tmp youtube-dl youtube-dl.exe
-	find . -name "*.pyc" -delete
-	find . -name "*.class" -delete
+.PHONY: all clean install test tar pypi-files completions ot offlinetest codetest supportedsites
 
 PREFIX ?= /usr/local
 BINDIR ?= $(PREFIX)/bin
 MANDIR ?= $(PREFIX)/man
 SHAREDIR ?= $(PREFIX)/share
 PYTHON ?= /usr/bin/env python
+
+all: youtube-dl README.md CONTRIBUTING.md README.txt youtube-dl.1 youtube-dl.bash-completion supportedsites
+# youtube-dl.zsh youtube-dl.fish
+
+clean: clean-test clean-dist clean-cache
+completions: completion-bash
+# completion-fish completion-zsh
+doc: README.md CONTRIBUTING.md issuetemplates supportedsites
+ot: offlinetest
+tar: youtube-dl.tar.gz
+
+# Keep this list in sync with MANIFEST.in
+# intended use: when building a source distribution,
+# make pypi-files && python setup.py sdist
+pypi-files: AUTHORS Changelog.md LICENSE README.md README.txt supportedsites completions youtube-dl.1 devscripts/* test/*
+
+clean-test:
+	rm -rf *.dump *.part* *.ytdl *.info.json *.mp4 *.m4a *.flv *.mp3 *.avi *.mkv *.webm *.3gp *.wav *.ape *.swf *.jpg *.png *.frag *.frag.urls *.frag.aria2 test/testdata/player-*.js
+clean-dist:
+	rm -rf youtube-dl.1.temp.md youtube-dl.1 README.txt MANIFEST build/ dist/ .coverage cover/ youtube-dl.tar.gz completions/ youtube-dl/extractor/lazy_extractors.py *.spec CONTRIBUTING.md.tmp youtube-dl youtube-dl.exe youtube-dl.egg-info/ AUTHORS .mailmap
+clean-cache:
+	find . -name "*.pyc" -o -name "*.class" -delete
+
+completion-bash: completions/bash/youtube-dl
+#completion-fish: completions/fish/yt-dlp.fish
+#completion-zsh: completions/zsh/_yt-dlp
+
+lazy-extractors: youtube-dl/extractor/lazy_extractors.py
+
+
 
 # set SYSCONFDIR to /etc if PREFIX=/usr or PREFIX=/usr/local
 SYSCONFDIR = $(shell if [ $(PREFIX) = /usr -o $(PREFIX) = /usr/local ]; then echo /etc; else echo $(PREFIX)/etc; fi)
@@ -34,22 +59,13 @@ codetest:
 
 test:
 	#nosetests --with-coverage --cover-package=youtube_dl --cover-html --verbose --processes 4 test
-	nosetests --verbose test
+	$(PYTHON) -m pytest test
 	$(MAKE) codetest
 
 ot: offlinetest
 
-# Keep this list in sync with devscripts/run_tests.sh
 offlinetest: codetest
-	$(PYTHON) -m nose --verbose test \
-		--exclude test_age_restriction.py \
-		--exclude test_download.py \
-		--exclude test_iqiyi_sdk_interpreter.py \
-		--exclude test_socks.py \
-		--exclude test_subtitles.py \
-		--exclude test_write_annotations.py \
-		--exclude test_youtube_lists.py \
-		--exclude test_youtube_signature.py
+	PYTHON=$(PYTHON) ./devscripts/run_tests.sh --offline-test
 
 tar: youtube-dl.tar.gz
 

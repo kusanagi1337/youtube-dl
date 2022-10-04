@@ -1,26 +1,18 @@
-*.pyc
-*.pyo
-*.class
+# Misc
 *~
 *.DS_Store
-wine-py2exe/
-py2exe.log
 *.kate-swp
-build/
-dist/
 MANIFEST
-README.txt
-youtube-dl.1
-youtube-dl.bash-completion
-youtube-dl.fish
-youtube_dl/extractor/lazy_extractors.py
-youtube-dl
-youtube-dl.exe
-youtube-dl.tar.gz
+test/local_parameters.json
+secrets/
 .coverage
 cover/
 updates_key.pem
 *.egg-info
+.tox
+*.class
+
+# Downloaded
 *.srt
 *.ttml
 *.sbv
@@ -38,9 +30,44 @@ updates_key.pem
 *.part
 *.ytdl
 *.swp
-test/local_parameters.json
-.tox
-youtube-dl.zsh
+
+# Config
+*.conf
+*.spec
+cookies
+cookies.txt
+
+# Allow config/media files in testdata
+!test/testdata/**
+
+# Generated
+AUTHORS
+README.txt
+.mailmap
+*.1
+*.bash-completion
+*.fish
+*.exe
+*.tar.gz
+*.zsh
+*.spec
+test/testdata/player-*.js
+
+# Lazy extractors
+youtube_dl/extractor/lazy_extractors.py
+
+# Python
+*.pyc
+*.pyo
+.pytest_cache
+wine-py2exe/
+py2exe.log
+build/
+dist/
+zip/
+tmp/
+venv/
+completions/
 
 # IntelliJ related files
 .idea
@@ -51,3 +78,6 @@ venv/
 
 # VS Code related files
 .vscode
+
+# Binary
+/youtube-dl

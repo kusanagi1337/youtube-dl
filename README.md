@@ -33,7 +33,7 @@ Windows users can [download an .exe file](https://yt-dl.org/latest/youtube-dl.ex
 You can also use pip:
 
     sudo -H pip install --upgrade youtube-dl
-    
+
 This command will update youtube-dl if you have already installed it. See the [pypi page](https://pypi.python.org/pypi/youtube_dl) for more information.
 
 macOS users can install youtube-dl with [Homebrew](https://brew.sh/):
@@ -563,7 +563,7 @@ The basic usage is not to set any template arguments when downloading a single f
  - `is_live` (boolean): Whether this video is a live stream or a fixed-length video
  - `start_time` (numeric): Time in seconds where the reproduction should start, as specified in the URL
  - `end_time` (numeric): Time in seconds where the reproduction should end, as specified in the URL
- - `format` (string): A human-readable description of the format 
+ - `format` (string): A human-readable description of the format
  - `format_id` (string): Format code specified by `--format`
  - `format_note` (string): Additional info about the format
  - `width` (numeric): Width of the video
@@ -675,7 +675,7 @@ The general syntax for format selection is `--format FORMAT` or shorter `-f FORM
 
 **tl;dr:** [navigate me to examples](#format-selection-examples).
 
-The simplest case is requesting a specific format, for example with `-f 22` you can download the format with format code equal to 22. You can get the list of available format codes for particular video using `--list-formats` or `-F`. Note that these format codes are extractor specific. 
+The simplest case is requesting a specific format, for example with `-f 22` you can download the format with format code equal to 22. You can get the list of available format codes for particular video using `--list-formats` or `-F`. Note that these format codes are extractor specific.
 
 You can also use a file extension (currently `3gp`, `aac`, `flv`, `m4a`, `mp3`, `mp4`, `ogg`, `wav`, `webm` are supported) to download the best quality format of a particular file extension served as a single file, e.g. `-f webm` will download the best quality format with the `webm` extension served as a single file.
 
@@ -760,7 +760,7 @@ Videos can be filtered by their upload date using the options `--date`, `--dateb
 
  - Absolute dates: Dates in the format `YYYYMMDD`.
  - Relative dates: Dates in the format `(now|today)[+-][0-9](day|week|month|year)(s)?`
- 
+
 Examples:
 
 ```bash
@@ -999,6 +999,7 @@ To run the test, simply invoke your favorite test runner, or execute a test file
     python -m unittest discover
     python test/test_download.py
     nosetests
+    pytest
 
 See item 6 of [new extractor tutorial](#adding-support-for-a-new-site) for how to run extractor specific test cases.
 
@@ -1008,7 +1009,7 @@ If you want to create a build of youtube-dl yourself, you'll need
 * make (only GNU make is supported)
 * pandoc
 * zip
-* nosetests
+* pytest
 
 ### Adding support for a new site
 
@@ -1114,7 +1115,7 @@ Say you have some source dictionary `meta` that you've fetched as JSON with HTTP
 ```python
 meta = self._download_json(url, video_id)
 ```
-    
+
 Assume at this point `meta`'s layout is:
 
 ```python
@@ -1158,7 +1159,7 @@ description = self._search_regex(
 ```
 
 On failure this code will silently continue the extraction with `description` set to `None`. That is useful for metafields that may or may not be present.
- 
+
 ### Provide fallbacks
 
 When extracting metadata try to do so from multiple sources. For example if `title` is present in several places, try extracting from at least some of them. This makes it more future-proof in case some of the sources become unavailable.
@@ -1206,7 +1207,7 @@ r'(id|ID)=(?P<id>\d+)'
 #### Make regular expressions relaxed and flexible
 
 When using regular expressions try to write them fuzzy, relaxed and flexible, skipping insignificant parts that are more likely to change, allowing both single and double quotes for quoted values and so on.
- 
+
 ##### Example
 
 Say you need to extract `title` from the following HTML code:
@@ -1230,7 +1231,7 @@ title = self._search_regex(
     webpage, 'title', group='title')
 ```
 
-Note how you tolerate potential changes in the `style` attribute's value or switch from using double quotes to single for `class` attribute: 
+Note how you tolerate potential changes in the `style` attribute's value or switch from using double quotes to single for `class` attribute:
 
 The code definitely should not look like:
 
@@ -1333,7 +1334,7 @@ Use `url_or_none` for safe URL processing.
 
 Use `try_get` for safe metadata extraction from parsed JSON.
 
-Use `unified_strdate` for uniform `upload_date` or any `YYYYMMDD` meta field extraction, `unified_timestamp` for uniform `timestamp` extraction, `parse_filesize` for `filesize` extraction, `parse_count` for count meta fields extraction, `parse_resolution`, `parse_duration` for `duration` extraction, `parse_age_limit` for `age_limit` extraction. 
+Use `unified_strdate` for uniform `upload_date` or any `YYYYMMDD` meta field extraction, `unified_timestamp` for uniform `timestamp` extraction, `parse_filesize` for `filesize` extraction, `parse_count` for count meta fields extraction, `parse_resolution`, `parse_duration` for `duration` extraction, `parse_age_limit` for `age_limit` extraction.
 
 Explore [`youtube_dl/utils.py`](https://github.com/ytdl-org/youtube-dl/blob/master/youtube_dl/utils.py) for more useful convenience functions.
 
