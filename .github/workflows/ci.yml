@@ -70,8 +70,8 @@ jobs:
     - name: Install pytest (Jython)
       if: ${{ matrix.python-impl == 'jython' }}
       run: |
-        wget https://files.pythonhosted.org/packages/70/c7/e8cb4a537ee4fc497ac80a606a667fd1832f28ad3ddbfa25bf30473eae13/pytest-4.6.11-py2.py3-none-any.whl
-        ${{ matrix.python }} -m pip install pytest-4.6.11-py2.py3-none-any.whl
+        unzip -u -q -o test/runner/pytest-4.6.11-py27-none-any.wgn
+        ${{ matrix.python }} -m pip install --no-index --find-links pytest/wheels pytest
     - name: Run tests
       continue-on-error: ${{ matrix.ytdl-test-set == 'download' || matrix.python-impl == 'jython' }}
       env:

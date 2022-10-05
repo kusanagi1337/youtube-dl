@@ -6,12 +6,10 @@ MANDIR ?= $(PREFIX)/man
 SHAREDIR ?= $(PREFIX)/share
 PYTHON ?= /usr/bin/env python
 
-all: youtube-dl README.md CONTRIBUTING.md README.txt youtube-dl.1 youtube-dl.bash-completion supportedsites
-# youtube-dl.zsh youtube-dl.fish
+all: youtube-dl README.md CONTRIBUTING.md README.txt youtube-dl.1 youtube-dl.bash-completion youtube-dl.zsh youtube-dl.fish supportedsites
 
 clean: clean-test clean-dist clean-cache
-completions: completion-bash
-# completion-fish completion-zsh
+completions: completion-bash completion-fish completion-zsh
 doc: README.md CONTRIBUTING.md issuetemplates supportedsites
 ot: offlinetest
 tar: youtube-dl.tar.gz
@@ -29,12 +27,10 @@ clean-cache:
 	find . -name "*.pyc" -o -name "*.class" -delete
 
 completion-bash: completions/bash/youtube-dl
-#completion-fish: completions/fish/yt-dlp.fish
-#completion-zsh: completions/zsh/_yt-dlp
+completion-fish: completions/fish/youtube-dl.fish
+completion-zsh: completions/zsh/youtube-dl
 
 lazy-extractors: youtube-dl/extractor/lazy_extractors.py
-
-
 
 # set SYSCONFDIR to /etc if PREFIX=/usr or PREFIX=/usr/local
 SYSCONFDIR = $(shell if [ $(PREFIX) = /usr -o $(PREFIX) = /usr/local ]; then echo /etc; else echo $(PREFIX)/etc; fi)
