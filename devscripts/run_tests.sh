@@ -20,6 +20,7 @@ case "$YTDL_TEST_SET" in
         # (pytest forgot the --include-glob= option: PR needed)
         pytest_ini=$(mktemp)
         trap "rm -f $pytest_ini" EXIT
+        ls -l
         echo "$test_set" | { cat pytest.ini; echo; sed -re 's/^/&python_files = /;s/[|]/ /g'; } >> "$pytest_ini"
         test_set="-c=$pytest_ini"
     ;;
