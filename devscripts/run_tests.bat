@@ -2,9 +2,12 @@
 
 rem Sync with the list in run_tests.sh, or use fallback
 for /f "delims=; usebackq" %%D in (`findstr /B "DOWNLOAD_TESTS=" "%~dpn0.sh"`) do (
-    set "%%D"
+    call :do_set "%%D"
     goto end_loop
 )
+:do_set
+set %1
+goto :eof
 :end_loop
 
 IF %ERRORLEVEL% NEQ 0 (
@@ -34,7 +37,12 @@ if "%YTDL_TEST_SET%" == "core" (
     set "_test_set= "
 )
 
-pytest test %_test_set% %*
+if defined PYTHON (
+    set "pytest=%PYTHON% -m pytest"
+) else (
+    set pytest=pytest
+)
+%pytest% test %_test_set% %*
 
 set ret=%ERRORLEVEL%
 del /f /q %TEMP%\pytest.ini

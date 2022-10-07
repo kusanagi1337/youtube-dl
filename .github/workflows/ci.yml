@@ -79,6 +79,7 @@ jobs:
       continue-on-error: ${{ matrix.ytdl-test-set == 'download' || matrix.python-impl == 'jython' }}
       env:
         YTDL_TEST_SET: ${{ matrix.ytdl-test-set }}
+        PYTHON: ${{ matrix.python }}
       run: ./devscripts/run_tests.${{ matrix.run-tests-ext }}
   flake8:
     name: Linter

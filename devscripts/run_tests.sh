@@ -19,6 +19,7 @@ case "$YTDL_TEST_SET" in
         # restrict to specified modules by specifying python_files= in .ini
         # (pytest forgot the --include-glob= option: PR needed)
         pytest_ini=$(mktemp)
+        # shellcheck disable=SC2064
         trap "rm -f $pytest_ini" EXIT
         echo "$test_set" | { cat pytest.ini; echo; sed -re 's/^/&python_files = /;s/[|]/ /g'; } >> "$pytest_ini"
         test_set="-c=$pytest_ini"
@@ -29,5 +30,5 @@ case "$YTDL_TEST_SET" in
 esac
 
 # shellcheck disable=SC2086
-${PYTHON:-} pytest $test_set "$@" test/
+${PYTHON:-} ${PYTHON:+-m} pytest $test_set "$@" test/
 
