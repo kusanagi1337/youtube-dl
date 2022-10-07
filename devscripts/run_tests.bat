@@ -1,4 +1,4 @@
-@echo off
+@echo on
 
 rem Sync with the list in run_tests.sh, or use fallback
 for /f "delims=; usebackq" %%D in (`findstr /B "DOWNLOAD_TESTS=" "%~dpn0.sh"`) do (
