@@ -72,6 +72,8 @@ jobs:
       run: |
         unzip -u -q -o test/runner/pytest-4.6.11-py27-none-any.wgn
         ${{ matrix.python }} -m pip install --no-index --find-links pytest/wheels pytest
+        printf "%s\n" "import sys" "print(sys.modules)" "print(sys.modules.keys())" >zzz.py
+        ${{ matrix.python }} zzz.py
     - name: Run tests
       continue-on-error: ${{ matrix.ytdl-test-set == 'download' || matrix.python-impl == 'jython' }}
       env:

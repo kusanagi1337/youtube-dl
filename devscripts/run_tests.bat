@@ -1,29 +1,42 @@
 @echo off
 
-rem Sync with the list in run_tests.sh
-for /f "delims=; usebackq" %%t in (`findstr /B "DOWNLOAD_TESTS=" "%%~dpn0.sh"`) (
-    set "%DOWNLOAD_TESTS%
+rem Sync with the list in run_tests.sh, or use fallback
+for /f "delims=; usebackq" %%D in (`findstr /B "DOWNLOAD_TESTS=" "%%~dpn0.sh"`) do (
+    set "%%D"
 )
 IF %ERRORLEVEL% NEQ 0 (
     set "DOWNLOAD_TESTS=age_restriction|download|iqiyi_sdk_interpreter|socks|subtitles|write_annotations|youtube_lists|youtube_signature"
 )
 
-if [%%1]==[--offline-test] (
+if [%1]==[--offline-test] (
     set YTDL_TEST_SET=core
     shift
 )
 
-set test_set=""
-for /f delims=^| %%t in ("%DOWNLOAD_TESTS%") (
-    if "%test_set" != "" set test_set="%test_set% or "
-    set test_set="%test_set%test_%%t"
-)
+set "_test_set="
 if "%YTDL_TEST_SET%" == "core" (
-    set "test_set=-k \"not (%DOWNLOAD_TESTS%)\""
+    for /f "delims=|" %%T in ("%DOWNLOAD_TESTS%") do call :add_file_arg "%%T" "--ignore-glob=" " "
 ) else if "%YTDL_TEST_SET%" == "download" (
-    set "test_set=-k \"%DOWNLOAD_TESTS%\""
+    copy /y pytest.ini %TEMP%
+    set "test_set=python_files ="
+    for /f "delims=|" %%T in ("%DOWNLOAD_TESTS%") do call :add_file_arg "%%T" ""
+    echo "%test_set" >> %TEMP%\pytest.ini
+    set "_test_set=-c=%TEMP%\pytest_ini"
 ) else (
-    set test_set=""
+    set "_test_set= "
 )
 
-pytest test %test_set% %%*
+pytest test %_test_set% %%*
+
+set ret=%ERRORLEVEL%
+del %TEMP%\pytest.ini
+exit /b %ret%
+
+:add_file_arg
+    if defined _test_set (
+        set "_test_set=%_test_set%%2test_%1.py"
+    ) else (
+        set "_test_set=%2test_%1.py"
+    )
+goto :eof
+
