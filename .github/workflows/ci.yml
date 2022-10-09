@@ -18,22 +18,17 @@ jobs:
         ytdl-test-set: [core, download]
         run-tests-ext: [sh]
         include:
-        # define executables
-        - python: python3
-          python-version: 3.9
         # python 3.2 is only available on windows via setup-python
         - os: windows-latest
           python-version: 3.2
           python-impl: cpython
           ytdl-test-set: core
           run-tests-ext: bat
-          python: python3
         - os: windows-latest
           python-version: 3.2
           python-impl: cpython
           ytdl-test-set: download
           run-tests-ext: sh
-          python: python3
         # jython
         - os: ubuntu-18.04
           python-impl: jython
@@ -45,7 +40,8 @@ jobs:
           ytdl-test-set: download
           run-tests-ext: sh
           python: jython
-
+        - python-impl: cpython
+          python: python
     steps:
     - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
@@ -64,22 +60,23 @@ jobs:
         wget https://repo1.maven.org/maven2/org/python/jython-installer/2.7.1/jython-installer-2.7.1.jar -O jython-installer.jar
         java -jar jython-installer.jar -s -d "$HOME/jython"
         echo "$HOME/jython/bin" >> $GITHUB_PATH
+    - name: PYTHON env
+      echo "PYTHON=${{ format('{0}{1}', matrix.python, matrix.python-version || '') }}" >> $GITHUB_ENV
     - name: Install pytest
       if: ${{ matrix.python-impl != 'jython' }}
-      run: ${{ matrix.python }} -m pip install pytest~=4.6.11
+      run: ${{ env.PYTHON }} -m pip install pytest~=4.6.11
     - name: Install pytest (Jython)
       if: ${{ matrix.python-impl == 'jython' }}
       run: |
         unzip -u -q -o test/runner/pytest-4.6.11-py27-none-any.wgn
-        ${{ matrix.python }} -m pip install --no-index --find-links pytest/wheels pytest
+        ${{ env.PYTHON }} -m pip install --no-index --find-links pytest/wheels pytest
         printf "%s\n" "import sys" "print(sys.path)" "print(sys.modules.keys())" >zzz.py
-        ${{ matrix.python }} zzz.py
+        ${{ env.python }} zzz.py
         cat /home/runner/jython/bin/pytest
     - name: Run tests
       continue-on-error: ${{ matrix.ytdl-test-set == 'download' || matrix.python-impl == 'jython' }}
       env:
         YTDL_TEST_SET: ${{ matrix.ytdl-test-set }}
-        PYTHON: ${{ matrix.python }}
       run: ./devscripts/run_tests.${{ matrix.run-tests-ext }}
   flake8:
     name: Linter
