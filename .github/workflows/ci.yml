@@ -61,7 +61,7 @@ jobs:
         java -jar jython-installer.jar -s -d "$HOME/jython"
         echo "$HOME/jython/bin" >> $GITHUB_PATH
     - name: PYTHON env
-      echo "PYTHON=${{ format('{0}{1}', matrix.python, matrix.python-version || '') }}" >> $GITHUB_ENV
+      run: echo "PYTHON=${{ format('{0}{1}', matrix.python, matrix.python-version || '') }}" >> $GITHUB_ENV
     - name: Install pytest
       if: ${{ matrix.python-impl != 'jython' }}
       run: ${{ env.PYTHON }} -m pip install pytest~=4.6.11
