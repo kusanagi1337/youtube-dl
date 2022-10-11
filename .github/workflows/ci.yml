@@ -44,6 +44,7 @@ jobs:
     - uses: actions/checkout@v2
     - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v2
+      id: setup-python
       if: ${{ matrix.python-impl == 'cpython' }}
       with:
         python-version: ${{ matrix.python-version }}
@@ -58,11 +59,10 @@ jobs:
         wget https://repo1.maven.org/maven2/org/python/jython-installer/2.7.3/jython-installer-2.7.3.jar -O jython-installer.jar
         java -jar jython-installer.jar -s -d "$HOME/jython"
         echo "$HOME/jython/bin" >> $GITHUB_PATH
+        echo "PYTHON=jython" >> $GITHUB_ENV
     - name: PYTHON env
-      run: echo "PYTHON=${{ format('{0}{1}', matrix.python || 'python', matrix.python-version || '') }}" >> $GITHUB_ENV
-    - name: PYTHON path
       if: ${{ matrix.python-impl != 'jython' }}
-      run: echo "${pythonLocation}" >> $GITHUB_PATH
+      run: echo "PYTHON=${{ fromJSON(steps.setup-python.outputs.python-path) }}" >> $GITHUB_ENV
     - name: Install pytest
       if: ${{ matrix.python-impl != 'jython' }}
       run: ${{ env.PYTHON }} -m pip install pytest~=4.6.11
