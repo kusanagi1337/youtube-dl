@@ -62,7 +62,7 @@ jobs:
       run: echo "PYTHON=${{ format('{0}{1}', matrix.python || 'python', matrix.python-version || '') }}" >> $GITHUB_ENV
     - name: PYTHON path
       if: ${{ matrix.python-impl != 'jython' }}
-      run: echo "{{ env.pythonLocation }}" >> $GITHUB_PATH
+      run: echo "${pythonLocation}" >> $GITHUB_PATH
     - name: Install pytest
       if: ${{ matrix.python-impl != 'jython' }}
       run: ${{ env.PYTHON }} -m pip install pytest~=4.6.11
