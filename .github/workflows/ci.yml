@@ -59,10 +59,10 @@ jobs:
         wget https://repo1.maven.org/maven2/org/python/jython-installer/2.7.3/jython-installer-2.7.3.jar -O jython-installer.jar
         java -jar jython-installer.jar -s -d "$HOME/jython"
         echo "$HOME/jython/bin" >> $GITHUB_PATH
-        echo "PYTHON=jython" >> $GITHUB_ENV
+        echo PYTHON=jython >> $GITHUB_ENV
     - name: PYTHON env
       if: ${{ matrix.python-impl != 'jython' }}
-      run: echo "PYTHON=${{ steps.setup-python.outputs.python-path || 'python' }}" >> $GITHUB_ENV
+      run: echo PYTHON="${{ steps.setup-python.outputs.python-path || 'python' }}" >> $GITHUB_ENV
     - name: Install pytest
       if: ${{ matrix.python-impl != 'jython' }}
       run: "$PYTHON" -m pip install pytest~=4.6.11
