@@ -62,7 +62,9 @@ jobs:
         echo "PYTHON=jython" >> $GITHUB_ENV
     - name: PYTHON env
       if: ${{ matrix.python-impl != 'jython' }}
-      run: echo "PYTHON=${{ steps.setup-python.outputs.python-path || 'python' }}" >> $GITHUB_ENV
+      run: |
+        PYTHON="${{ steps.setup-python.outputs.python-path || 'python' }}"
+        echo "PYTHON=${PYTHON//\\/\\\\}" >> $GITHUB_ENV
     - name: Install pytest
       if: ${{ matrix.python-impl != 'jython' }}
       run: ${{ env.PYTHON }} -m pip install pytest~=4.6.11
