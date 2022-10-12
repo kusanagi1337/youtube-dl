@@ -62,9 +62,7 @@ jobs:
         echo "PYTHON=jython" >> $GITHUB_ENV
     - name: PYTHON env
       if: ${{ matrix.python-impl != 'jython' }}
-      run: |
-        PYTHON="${{ steps.setup-python.outputs.python-path || 'python' }}"
-        echo "PYTHON=${PYTHON//\\/\\\\}" >> $GITHUB_ENV
+      run: echo "PYTHON=${{ steps.setup-python.outputs.python-path || 'python' }}" >> $GITHUB_ENV
     - name: Install pytest
       if: ${{ matrix.python-impl != 'jython' }}
       run: ${{ env.PYTHON }} -m pip install pytest~=4.6.11
@@ -72,9 +70,9 @@ jobs:
       if: ${{ matrix.python-impl == 'jython' }}
       run: |
         unzip -u -q -o test/runner/pytest-4.6.11-py27-none-any.wgn
-        ${{ env.PYTHON }} -m pip install --no-index --find-links pytest/wheels pytest
+        "$PYTHON" -m pip install --no-index --find-links pytest/wheels pytest
         printf "%s\n" "import sys" "print(sys.path)" "print(sys.modules.keys())" >zzz.py
-        ${{ env.PYTHON }} zzz.py
+        "$PYTHON" zzz.py
         cat /home/runner/jython/bin/pytest
     - name: Run tests
       continue-on-error: ${{ matrix.ytdl-test-set == 'download' || matrix.python-impl == 'jython' }}
