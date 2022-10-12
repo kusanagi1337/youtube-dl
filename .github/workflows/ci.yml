@@ -65,6 +65,11 @@ jobs:
         java -jar jython-installer.jar -s -d "$HOME/jython"
         echo "$HOME/jython/bin" >> $GITHUB_PATH
         echo PYTHON=jython >> $GITHUB_ENV
+    - name: Install pip (${{ matrix.python-impl }})
+      if: ${{ contains(fromJson('["2.7", "3.2", "3.3"]'), matrix.python-version) }}
+      run: |
+        wget https://bootstrap.pypa.io/pip/${{ matrix.python-version }}/get-pip.py
+        ${{ matrix.python }} get-pip.py
     - name: Install pytest (${{ matrix.python-impl }})
       if: ${{ matrix.python-impl == 'cpython' }}
       run: |
