@@ -65,20 +65,15 @@ jobs:
         java -jar jython-installer.jar -s -d "$HOME/jython"
         echo "$HOME/jython/bin" >> $GITHUB_PATH
         echo PYTHON=jython >> $GITHUB_ENV
-    - name: Install pip (${{ matrix.python-impl }})
-      if: ${{ contains(fromJson('["2.7", "3.2", "3.3"]'), matrix.python-version) }}
-      run: |
-        aria2c --allow-overwrite --show-console-readout=false https://bootstrap.pypa.io/pip/${{ matrix.python-version }}/get-pip.py
-        ${{ matrix.python }} get-pip.py
     - name: Install pytest (${{ matrix.python-impl }})
-      if: ${{ matrix.python-impl == 'cpython' }}
+      if: ${{ matrix.python-impl == 'cpython' && matrix.python-version != '3.2'}}
       run: |
         ${{ matrix.python }} -m pip install pytest~=4.6.11
         [ ! -f requirements.txt ] || python -m pip install -r requirements.txt
-    - name: Install pytest (Jython)
-      if: ${{ matrix.python-impl == 'jython' }}
+    - name: Install pytest (Old xython)
+      if: ${{ matrix.python-impl == 'jython' || matrix.python-version == '3.2' }}
       run: |
-        unzip -u -q -o test/runner/pytest-4.6.11-py27-none-any.wgn
+        7z x -aoa -bp0 -tzip test/runner/pytest-4.6.11-py27-none-any.wgn
         ${{ matrix.python }} -m pip install --no-index --find-links pytest/wheels pytest
         printf "%s\n" "import sys" "print(sys.path)" "print(sys.modules.keys())" >zzz.py
         ${{ matrix.python }} zzz.py
