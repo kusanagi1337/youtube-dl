@@ -73,7 +73,7 @@ jobs:
     - name: Install pytest (Old xython)
       if: ${{ matrix.python-impl == 'jython' || matrix.python-version == '3.2' }}
       run: |
-        7z x -aoa -bp0 -tzip test/runner/pytest-4.6.11-py27-none-any.wgn
+        7z x -aoa -bsp0 -tzip test/runner/pytest-4.6.11-py27-none-any.wgn
         ${{ matrix.python }} -m pip install --no-index --find-links pytest/wheels pytest
         printf "%s\n" "import sys" "print(sys.path)" "print(sys.modules.keys())" >zzz.py
         ${{ matrix.python }} zzz.py
