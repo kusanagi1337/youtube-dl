@@ -53,6 +53,9 @@ jobs:
       if: ${{ matrix.python-impl == 'cpython' }}
       with:
         python-version: ${{ matrix.python-version }}
+    - name: Set up Pip for old Python ${{ matrix.python-version }}
+      if: ${{ matrix.python-version == '3.2' || matrix.python-impl == 'jython'}}
+      run: ./devscripts/install-pip.py --builtin
     - name: Set up Java 8
       if: ${{ matrix.python-impl == 'jython' }}
       uses: actions/setup-java@v1
