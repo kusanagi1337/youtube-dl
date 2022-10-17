@@ -53,9 +53,6 @@ jobs:
       if: ${{ matrix.python-impl == 'cpython' }}
       with:
         python-version: ${{ matrix.python-version }}
-    - name: Set up Pip for old Python ${{ matrix.python-version }}
-      if: ${{ matrix.python-version == '3.2' || matrix.python-impl == 'jython'}}
-      run: ./devscripts/install-pip.py --builtin
     - name: Set up Java 8
       if: ${{ matrix.python-impl == 'jython' }}
       uses: actions/setup-java@v1
@@ -68,6 +65,10 @@ jobs:
         java -jar jython-installer.jar -s -d "$HOME/jython"
         echo "$HOME/jython/bin" >> $GITHUB_PATH
         echo PYTHON=jython >> $GITHUB_ENV
+        echo JYTHONPATH=./devscripts/pip-7.1.2.zip >> $GITHUB_ENV
+    - name: Set up Pip for old Python ${{ matrix.python-version }}
+      if: ${{ matrix.python-version == '3.2' }}
+      run: echo PYTHONPATH=./devscripts/pip-7.1.2.zip >> $GITHUB_ENV
     - name: Install pytest (${{ matrix.python-impl }})
       if: ${{ matrix.python-impl == 'cpython' && matrix.python-version != '3.2'}}
       run: |
