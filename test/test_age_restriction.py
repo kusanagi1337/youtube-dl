@@ -11,6 +11,7 @@ from test.helper import try_rm
 
 
 from youtube_dl import YoutubeDL
+from youtube_dl.utils import DownloadError
 
 
 def _download_restricted(url, filename, age):
@@ -26,7 +27,10 @@ def _download_restricted(url, filename, age):
     ydl.add_default_info_extractors()
     json_filename = os.path.splitext(filename)[0] + '.info.json'
     try_rm(json_filename)
-    ydl.download([url])
+    try:
+        ydl.download([url])
+    except DownloadError:
+        try_rm(json_filename)
     res = os.path.exists(json_filename)
     try_rm(json_filename)
     return res
