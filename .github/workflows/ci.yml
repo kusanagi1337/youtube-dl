@@ -55,9 +55,10 @@ jobs:
         python-version: ${{ matrix.python-version }}
     - name: Set up Java 8
       if: ${{ matrix.python-impl == 'jython' }}
-      uses: actions/setup-java@v1
+      uses: actions/setup-java@v3
       with:
-        java-version: 8
+        java-version: '8'
+        distribution: 'temurin'
     - name: Install Jython
       if: ${{ matrix.python-impl == 'jython' }}
       run: |
@@ -65,7 +66,6 @@ jobs:
         java -jar jython-installer.jar -s -d "$HOME/jython"
         echo "$HOME/jython/bin" >> $GITHUB_PATH
         echo PYTHON=jython >> $GITHUB_ENV
-        echo JYTHONPATH=./devscripts/pip-7.1.2.zip >> $GITHUB_ENV
     - name: Set up Pip for old Python ${{ matrix.python-version }}
       if: ${{ matrix.python-version == '3.2' }}
       run: echo PYTHONPATH=./devscripts/pip-7.1.2.zip >> $GITHUB_ENV
@@ -77,11 +77,11 @@ jobs:
     - name: Install pytest (Old xython)
       if: ${{ matrix.python-impl == 'jython' || matrix.python-version == '3.2' }}
       run: |
-        7z x -aoa -bsp0 -tzip test/runner/pytest-4.6.11-py27-none-any.wgn
-        ${{ matrix.python }} -m pip install --no-index --find-links pytest/wheels pytest
+        ls -lR ./test/runner
+        7z x -aoa -bsp0 -tzip ./test/runner/pytest-4.6.11-py27.py32-none-any.wgn
+        ${{ matrix.python }} -m pip install --no-index --find-links ./pytest/wheels pytest
         printf "%s\n" "import sys" "print(sys.path)" "print(sys.modules.keys())" >zzz.py
         ${{ matrix.python }} zzz.py
-        cat /home/runner/jython/bin/pytest
     - name: Install pytest (check)
       if: ${{ matrix.python-impl != 'cpython' && matrix.python-impl != 'jython' }}
       run: echo "::error Unexpected python-impl ${{ matrix.python-impl }}!"
