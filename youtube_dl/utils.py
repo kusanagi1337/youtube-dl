@@ -3495,7 +3495,8 @@ def write_string(s, out=None, encoding=None):
         if _windows_write_string(s, out):
             return
 
-    if ('b' in getattr(out, 'mode', '')
+    # `mode` might be `None` (see https://github.com/yt-dlp/yt-dlp/issues/8816)
+    if ('b' in (getattr(out, 'mode', None) or '')
             or sys.version_info[0] < 3):  # Python 2 lies about mode of sys.stderr
         byt = s.encode(encoding or preferredencoding(), 'ignore')
         out.write(byt)
