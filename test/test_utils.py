@@ -337,6 +337,9 @@ class TestUtil(unittest.TestCase):
         self.assertEqual(unescapeHTML('&a&quot;'), '&a"')
         # HTML5 entities
         self.assertEqual(unescapeHTML('&period;&apos;'), '.\'')
+        # non-semicolon HTML5 (bah!) entities
+        self.assertEqual(unescapeHTML('&amp&AMPetc'), '&&etc')
+        self.assertEqual(unescapeHTML('&pound&POUNDetc'), '£&POUNDetc')
 
     def test_date_from_str(self):
         self.assertEqual(date_from_str('yesterday'), date_from_str('now-1day'))
@@ -1251,7 +1254,7 @@ class TestUtil(unittest.TestCase):
     def test_args_to_str(self):
         self.assertEqual(
             args_to_str(['foo', 'ba/r', '-baz', '2 be', '']),
-            'foo ba/r -baz \'2 be\' \'\'' if not(compat_os_name in ('nt', 'ce')) else 'foo ba/r -baz "2 be" ""'
+            'foo ba/r -baz \'2 be\' \'\'' if not (compat_os_name in ('nt', 'ce')) else 'foo ba/r -baz "2 be" ""'
         )
 
     def test_parse_filesize(self):

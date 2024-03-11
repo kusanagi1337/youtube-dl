@@ -2232,25 +2232,25 @@ def orderedSet(iterable):
     return res
 
 
-def _htmlentity_transform(entity_with_semicolon):
+def _htmlentity_transform(entity):
     """Transforms an HTML entity to a character."""
+    entity_with_semicolon = entity if entity[-1] == ';' else (entity + ';')
     entity = entity_with_semicolon[:-1]
 
     # Known non-numeric HTML entity
     if entity in compat_html_entities.name2codepoint:
         return compat_chr(compat_html_entities.name2codepoint[entity])
 
-    # TODO: HTML5 allows entities without a semicolon. For example,
-    # '&Eacuteric' should be decoded as 'Éric'.
     if entity_with_semicolon in compat_html_entities_html5:
         return compat_html_entities_html5[entity_with_semicolon]
 
-    mobj = re.match(r'#(x[0-9a-fA-F]+|[0-9]+)', entity)
+    # numeric entity
+    mobj = re.match(r'(?i)#(x[0-9a-f]+|[0-9]+)', entity)
     if mobj is not None:
         numstr = mobj.group(1)
-        if numstr.startswith('x'):
+        if numstr[0] in 'xX':
             base = 16
-            numstr = '0%s' % numstr
+            numstr = '0%s' % numstr.lower()
         else:
             base = 10
         # See https://github.com/ytdl-org/youtube-dl/issues/7518
@@ -2263,13 +2263,34 @@ def _htmlentity_transform(entity_with_semicolon):
     return '&%s;' % entity
 
 
+# Based on https://en.wikipedia.org/wiki/List_of_XML_and_HTML_character_entity_references#cite_note-semicolon-2
+# (someone else read WHATWG so we didn't have to)
+_html5_CI_non_semicolon_entities = (
+    # canonically use lower-case REs
+    'quot', 'amp', '[lg]t', 'copy', 'reg', 'eth', 'thorn',
+)
+_html5_non_semicolon_entities = itertools.chain(
+    _html5_CI_non_semicolon_entities,
+    (e.upper() for e in _html5_CI_non_semicolon_entities),
+    ('nbsp', 'i(?:excl|quest)', 'cent', 'pound', 'curren', 'yen', 'brvbar',
+     'sect', 'ord[fm]', '[lr]aquo', 'not', 'shy' 'macr', 'dseg',
+     'plusmn', 'sup[231]', 'micro', 'para', 'middot', '[cC]?cedil',
+     'frac(?:12|[13]4)', '[aAeEiIoOuUyY]?(?:acute|uml)',
+     '[aAeEiIoOuU](?:grave|circ)', '[aA]ring', '[aAnNoO]tilde',
+     '(?:ae|AE|sz|SZ)lig', '[oO]slash', 'divide', 'times', )
+)
+_html5_entities_re = '&([^&;]+;|%s)' % '|'.join(_html5_non_semicolon_entities)
+
+
 def unescapeHTML(s):
     if s is None:
         return None
     assert isinstance(s, compat_str)
 
     return re.sub(
-        r'&([^&;]+;)', lambda m: _htmlentity_transform(m.group(1)), s)
+        # match generic &xxx;, &nnn; entities, and also
+        # HTML5 "named character references" with *omitted* final ;
+        _html5_entities_re, lambda m: _htmlentity_transform(m.group(1)), s)
 
 
 def process_communicate_or_kill(p, *args, **kwargs):
